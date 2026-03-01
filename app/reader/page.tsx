@@ -3,6 +3,7 @@
 import DOMPurify from "dompurify";
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -150,6 +151,7 @@ const DEFAULT_SENTENCE_END_MS = 500;
 const DEFAULT_SPEECH_BREAK_MS = 250;
 
 export default function ReaderPage() {
+  const searchParams = useSearchParams();
   const { reduceMotion, setReduceMotion } = useReduceMotion();
   const { reduceTransparency, setReduceTransparency } = useReduceTransparency();
   const { theme, setTheme } = useTheme();
@@ -275,9 +277,9 @@ export default function ReaderPage() {
     return () => ro.disconnect();
   }, [article, isCompactView]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!url.trim()) return;
+  const loadArticle = useCallback(async (articleUrl: string) => {
+    const trimmed = articleUrl.trim();
+    if (!trimmed) return;
 
     setIsLoading(true);
     setError(null);
@@ -288,7 +290,7 @@ export default function ReaderPage() {
       const res = await fetch("/api/extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim() }),
+        body: JSON.stringify({ url: trimmed }),
       });
 
       const data = await res.json();
@@ -303,6 +305,19 @@ export default function ReaderPage() {
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    const paramUrl = searchParams.get("url") ?? searchParams.get("u");
+    if (paramUrl?.trim()) {
+      setUrl(paramUrl.trim());
+      loadArticle(paramUrl);
+    }
+  }, [searchParams, loadArticle]);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    loadArticle(url);
   }
 
   return (
