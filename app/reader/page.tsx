@@ -473,7 +473,11 @@ export default function ReaderPage() {
       ) {
         return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "c") {
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        e.shiftKey &&
+        e.key.toLowerCase() === "c"
+      ) {
         e.preventDefault();
         handleCopyLink();
       }
@@ -493,7 +497,12 @@ export default function ReaderPage() {
       0,
       words.length - 1,
     );
-  }, [articleText, wordsPerMinute, sentenceEndDurationMs, speechBreakDurationMs]);
+  }, [
+    articleText,
+    wordsPerMinute,
+    sentenceEndDurationMs,
+    speechBreakDurationMs,
+  ]);
 
   const readingTimeLabel =
     readingTimeMs >= 60000

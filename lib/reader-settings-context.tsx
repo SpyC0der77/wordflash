@@ -4,7 +4,7 @@ import React, {
   createContext,
   useCallback,
   useContext,
-  useEffect,
+  useLayoutEffect,
   useState,
 } from "react";
 import type {
@@ -107,8 +107,7 @@ const ReaderSettingsContext = createContext<ReaderSettingsContextValue | null>(
 export function ReaderSettingsProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<StoredSettings>(DEFAULTS);
 
-  useEffect(() => {
-    /* eslint-disable-next-line react-hooks/set-state-in-effect -- load from localStorage on mount */
+  useLayoutEffect(() => {
     setSettings(loadStored());
   }, []);
 
