@@ -306,9 +306,11 @@ export default function ReaderPage() {
             Math.max(0, storedIndex),
             wordCount - 1,
           );
-          setWordIndex(restoredIndex);
-          toast.info(`Resumed from word ${restoredIndex + 1}`);
-          return;
+          const id = setTimeout(() => {
+            setWordIndex(restoredIndex);
+            toast.info("Resumed from previous session");
+          }, 100);
+          return () => clearTimeout(id);
         }
       }
     } catch {
