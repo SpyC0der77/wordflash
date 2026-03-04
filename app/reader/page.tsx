@@ -523,6 +523,9 @@ export default function ReaderPage() {
                       onCheckedChange={setReduceMotion}
                     />
                   </div>
+                  <p className="pt-2 text-xs text-muted-foreground">
+                    Keyboard: Space to play/pause, ← → to skip words
+                  </p>
                 </div>
               </Dialog.Content>
             </Dialog.Portal>

@@ -33,6 +33,8 @@ const SAMPLE_TEXT =
 
 const SENTENCE_END_DELAY_MS_AT_250_WPM = 500;
 const PAUSE_PUNCTUATION_DELAY_MS_AT_250_WPM = 250;
+const DEFAULT_SENTENCE_END_MS = 500;
+const DEFAULT_SPEECH_BREAK_MS = 250;
 
 interface SpeedReaderBaseProps {
   wordsPerMinute?: number;
@@ -106,7 +108,20 @@ export function SpeedReader(
   );
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [fontSize, setFontSize] = useState<FontSizeKey>("md");
+  const [fontFamily, setFontFamily] = useState<FontFamilyKey>("serif");
+  const [sentenceEndDurationMs, setSentenceEndDurationMs] = useState(
+    DEFAULT_SENTENCE_END_MS,
+  );
+  const [speechBreakDurationMs, setSpeechBreakDurationMs] = useState(
+    DEFAULT_SPEECH_BREAK_MS,
+  );
   const timeoutRef = useRef<number | null>(null);
+
+  const effectiveSentenceEndMs =
+    isFull ? sentenceEndDurationMs : (props.sentenceEndDurationMsAt250Wpm ?? SENTENCE_END_DELAY_MS_AT_250_WPM);
+  const effectiveSpeechBreakMs =
+    isFull ? speechBreakDurationMs : (props.speechBreakDurationMsAt250Wpm ?? PAUSE_PUNCTUATION_DELAY_MS_AT_250_WPM);
 
   const text = isFull
     ? inputText
@@ -151,11 +166,8 @@ export function SpeedReader(
 
     const baseMsPerWord = Math.max(30, Math.round(60000 / wordsPerMinute));
     const wpmScale = 250 / wordsPerMinute;
-    const sentenceEndMs =
-      props.sentenceEndDurationMsAt250Wpm ?? SENTENCE_END_DELAY_MS_AT_250_WPM;
-    const speechBreakMs =
-      props.speechBreakDurationMsAt250Wpm ??
-      PAUSE_PUNCTUATION_DELAY_MS_AT_250_WPM;
+    const sentenceEndMs = effectiveSentenceEndMs;
+    const speechBreakMs = effectiveSpeechBreakMs;
     const sentenceDelay = Math.round(sentenceEndMs * wpmScale);
     const pauseDelay = Math.round(speechBreakMs * wpmScale);
 
@@ -187,8 +199,8 @@ export function SpeedReader(
     wordsPerMinute,
     activeWordIndex,
     words,
-    props.sentenceEndDurationMsAt250Wpm,
-    props.speechBreakDurationMsAt250Wpm,
+    effectiveSentenceEndMs,
+    effectiveSpeechBreakMs,
   ]);
 
   const isFinished =
@@ -200,9 +212,8 @@ export function SpeedReader(
       calculateReadingTimeMs(
         words,
         wordsPerMinute,
-        props.sentenceEndDurationMsAt250Wpm ?? SENTENCE_END_DELAY_MS_AT_250_WPM,
-        props.speechBreakDurationMsAt250Wpm ??
-          PAUSE_PUNCTUATION_DELAY_MS_AT_250_WPM,
+        effectiveSentenceEndMs,
+        effectiveSpeechBreakMs,
         activeWordIndex,
         words.length - 1,
       ),
@@ -210,8 +221,8 @@ export function SpeedReader(
       words,
       wordsPerMinute,
       activeWordIndex,
-      props.sentenceEndDurationMsAt250Wpm,
-      props.speechBreakDurationMsAt250Wpm,
+      effectiveSentenceEndMs,
+      effectiveSpeechBreakMs,
     ],
   );
 
@@ -301,21 +312,15 @@ export function SpeedReader(
   const isPanelFillHeight =
     props.variant === "panel" && (props as SpeedReaderPanelProps).fillHeight;
 
-  const panelFontSize =
-    props.variant === "panel"
-      ? ((props as SpeedReaderPanelProps).fontSize ?? "md")
-      : "md";
-  const panelFontFamily =
-    props.variant === "panel"
-      ? ((props as SpeedReaderPanelProps).fontFamily ?? "serif")
-      : "serif";
+  const effectiveFontSize =
+    isFull ? fontSize : ((props as SpeedReaderPanelProps).fontSize ?? "md");
+  const effectiveFontFamily =
+    isFull ? fontFamily : ((props as SpeedReaderPanelProps).fontFamily ?? "serif");
 
-  const wordDisplayClassName = isFull
-    ? cn(FONT_SIZES.md.className, FONT_FAMILIES.serif.className)
-    : cn(
-        FONT_SIZES[panelFontSize].className,
-        FONT_FAMILIES[panelFontFamily].className,
-      );
+  const wordDisplayClassName = cn(
+    FONT_SIZES[effectiveFontSize].className,
+    FONT_FAMILIES[effectiveFontFamily].className,
+  );
 
   const content = (
     <>
@@ -496,7 +501,7 @@ export function SpeedReader(
                 Settings
               </Dialog.Title>
               <Dialog.Description className="mb-4 text-sm text-muted-foreground">
-                Customize the reading experience.
+                Adjust pause durations (values at 250 WPM; scale with speed).
               </Dialog.Description>
               <div className="space-y-4">
                 <div>
@@ -521,6 +526,92 @@ export function SpeedReader(
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div>
+                  <label
+                    htmlFor="font-size-select"
+                    className="mb-2 block text-sm font-medium text-zinc-100"
+                  >
+                    Font size
+                  </label>
+                  <Select
+                    value={fontSize}
+                    onValueChange={(v) => setFontSize(v as FontSizeKey)}
+                  >
+                    <SelectTrigger id="font-size-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(FONT_SIZES) as FontSizeKey[]).map(
+                        (key) => (
+                          <SelectItem key={key} value={key}>
+                            {FONT_SIZES[key].label}
+                          </SelectItem>
+                        )
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label
+                    htmlFor="font-family-select"
+                    className="mb-2 block text-sm font-medium text-zinc-100"
+                  >
+                    Font family
+                  </label>
+                  <Select
+                    value={fontFamily}
+                    onValueChange={(v) => setFontFamily(v as FontFamilyKey)}
+                  >
+                    <SelectTrigger id="font-family-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(FONT_FAMILIES) as FontFamilyKey[]).map(
+                        (key) => (
+                          <SelectItem key={key} value={key}>
+                            {FONT_FAMILIES[key].label}
+                          </SelectItem>
+                        )
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label
+                    htmlFor="sentence-end-full"
+                    className="mb-2 block text-sm font-medium text-zinc-100"
+                  >
+                    Sentence End Duration ({sentenceEndDurationMs}ms)
+                  </label>
+                  <Slider
+                    id="sentence-end-full"
+                    min={0}
+                    max={1000}
+                    step={50}
+                    value={[sentenceEndDurationMs]}
+                    onValueChange={([v]) =>
+                      setSentenceEndDurationMs(v ?? DEFAULT_SENTENCE_END_MS)
+                    }
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="speech-break-full"
+                    className="mb-2 block text-sm font-medium text-zinc-100"
+                  >
+                    Speech Break Duration ({speechBreakDurationMs}ms)
+                  </label>
+                  <Slider
+                    id="speech-break-full"
+                    min={0}
+                    max={1000}
+                    step={25}
+                    value={[speechBreakDurationMs]}
+                    onValueChange={([v]) =>
+                      setSpeechBreakDurationMs(v ?? DEFAULT_SPEECH_BREAK_MS)
+                    }
+                  />
                 </div>
                 <div className="flex items-center justify-between gap-4">
                   <label
@@ -548,6 +639,9 @@ export function SpeedReader(
                     onCheckedChange={setReduceMotion}
                   />
                 </div>
+                <p className="pt-2 text-xs text-muted-foreground">
+                  Keyboard: Space to play/pause, ← → to skip words
+                </p>
               </div>
             </Dialog.Content>
           </Dialog.Portal>

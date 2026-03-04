@@ -1,14 +1,15 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore } from "react";
 
 const STORAGE_KEY = "speedreader-theme";
-const VALID_THEMES = ["black", "gray"] as const;
+const VALID_THEMES = ["black", "gray", "system"] as const;
 const DEFAULT_THEME: Theme = "black";
 
 const THEMES = {
   black: "Black",
   gray: "Gray",
+  system: "System",
 } as const;
 
 type Theme = (typeof VALID_THEMES)[number];
@@ -29,6 +30,12 @@ function getStoredTheme(): Theme {
 
 function applyTheme(theme: Theme) {
   document.documentElement.setAttribute("data-theme", theme);
+  if (theme === "system") {
+    const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.classList.toggle("dark", dark);
+  } else {
+    document.documentElement.classList.add("dark");
+  }
 }
 
 let listeners: Array<() => void> = [];
@@ -76,7 +83,7 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
  * attribute, preventing FOUC and hydration mismatches.
  */
 export function ThemeScript() {
-  const scriptContent = `(function(){try{var t=localStorage.getItem("${STORAGE_KEY}");if(t==="gray"||t==="black"){document.documentElement.setAttribute("data-theme",t)}else{document.documentElement.setAttribute("data-theme","${DEFAULT_THEME}")}}catch(e){document.documentElement.setAttribute("data-theme","${DEFAULT_THEME}")}})()`;
+  const scriptContent = `(function(){try{var t=localStorage.getItem("${STORAGE_KEY}");if(t==="gray"||t==="black"){document.documentElement.setAttribute("data-theme",t);document.documentElement.classList.add("dark")}else if(t==="system"){document.documentElement.setAttribute("data-theme","system");var d=window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.toggle("dark",d)}else{document.documentElement.setAttribute("data-theme","${DEFAULT_THEME}");document.documentElement.classList.add("dark")}}catch(e){document.documentElement.setAttribute("data-theme","${DEFAULT_THEME}");document.documentElement.classList.add("dark")}})()`;
 
   return (
     <script
@@ -92,6 +99,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const setTheme = useCallback((value: Theme) => {
     setThemeExternal(value);
   }, []);
+
+  useEffect(() => {
+    if (theme !== "system") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = () => {
+      document.documentElement.classList.toggle("dark", mq.matches);
+    };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [theme]);
 
   const value = useMemo(() => ({ theme, setTheme }), [theme, setTheme]);
 
