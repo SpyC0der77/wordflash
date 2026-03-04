@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
+  addWordBreakOpportunities,
   attachTrailingCommasToLinks,
   parseWords,
   getFocalCharacterIndex,
   getWordParts,
+  splitIntoDisplayChunks,
 } from "./text-preprocessing";
 
 describe("attachTrailingCommasToLinks", () => {
@@ -52,6 +54,27 @@ describe("attachTrailingCommasToLinks", () => {
     const html = '<a href="/x">click <strong>here</strong></a>, now';
     expect(attachTrailingCommasToLinks(html)).toBe(
       '<a href="/x">click <strong>here</strong>,</a> now',
+    );
+  });
+
+  it("moves period inside link when period and space follow link", () => {
+    const html = '<a href="/x">link</a>. Next';
+    expect(attachTrailingCommasToLinks(html)).toBe(
+      '<a href="/x">link.</a> Next',
+    );
+  });
+
+  it("moves period inside link when period immediately follows link", () => {
+    const html = '<a href="/x">click</a>.';
+    expect(attachTrailingCommasToLinks(html)).toBe(
+      '<a href="/x">click.</a>',
+    );
+  });
+
+  it("handles mixed commas and periods", () => {
+    const html = '<a href="/a">first</a>, <a href="/b">second</a>. Done';
+    expect(attachTrailingCommasToLinks(html)).toBe(
+      '<a href="/a">first,</a> <a href="/b">second.</a> Done',
     );
   });
 });
@@ -281,6 +304,45 @@ describe("getFocalCharacterIndex", () => {
 
   it("returns 4 for words 14+ characters", () => {
     expect(getFocalCharacterIndex("supercalifragilistic")).toBe(4);
+  });
+});
+
+describe("splitIntoDisplayChunks", () => {
+  it("returns single chunk for short strings", () => {
+    expect(splitIntoDisplayChunks("hello")).toEqual(["hello"]);
+    expect(splitIntoDisplayChunks("short")).toEqual(["short"]);
+  });
+
+  it("splits at hyphens for hyphenated words", () => {
+    const chunks = splitIntoDisplayChunks("reuse-ish)");
+    expect(chunks.join("")).toBe("reuse-ish)");
+    expect(chunks.some((c) => c.includes("-"))).toBe(true);
+  });
+
+  it("splits long words after vowels", () => {
+    const chunks = splitIntoDisplayChunks("elievable");
+    expect(chunks.join("")).toBe("elievable");
+    expect(chunks.length).toBeGreaterThan(1);
+  });
+});
+
+describe("addWordBreakOpportunities", () => {
+  const ZWSP = "\u200B";
+
+  it("returns short strings unchanged", () => {
+    expect(addWordBreakOpportunities("hello")).toBe("hello");
+    expect(addWordBreakOpportunities("short")).toBe("short");
+  });
+
+  it("inserts breaks after vowels in long strings", () => {
+    const result = addWordBreakOpportunities("elievable", 6);
+    expect(result).toContain(ZWSP);
+    expect(result.replace(ZWSP, "")).toBe("elievable");
+  });
+
+  it("uses hyphens as break points", () => {
+    const result = addWordBreakOpportunities("twenty-five", 6);
+    expect(result.replace(/\u200B/g, "")).toBe("twenty-five");
   });
 });
 

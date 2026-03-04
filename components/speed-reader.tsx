@@ -31,6 +31,7 @@ import {
   calculateReadingTimeMs,
   getWordParts,
   parseWords,
+  splitIntoDisplayChunks,
   wordEndsSentence,
   wordHasPausePunctuation,
 } from "@/lib/speed-reader";
@@ -441,17 +442,50 @@ export function SpeedReader(
 
           <div
             className={cn(
-              "grid w-full max-w-2xl grid-cols-[1fr_auto_1fr] items-baseline px-4 leading-none sm:px-6",
+              "flex w-full max-w-2xl flex-col items-center gap-0 px-4 leading-none sm:px-6",
               wordDisplayClassName,
             )}
           >
-            <span className="justify-self-end pr-1 text-muted-foreground dark:text-zinc-100">
-              {left}
-            </span>
-            <span className={focalColorClassName}>{focalCharacter || "•"}</span>
-            <span className="justify-self-start pl-1 text-muted-foreground dark:text-zinc-100">
-              {right}
-            </span>
+            {(() => {
+              const leftChunks = splitIntoDisplayChunks(left);
+              const rightChunks = splitIntoDisplayChunks(right);
+              const rowCount = Math.max(
+                leftChunks.length,
+                rightChunks.length,
+                1,
+              );
+              const chunkClass =
+                "text-muted-foreground dark:text-zinc-100 whitespace-nowrap";
+              const leftChunkClass = cn(
+                chunkClass,
+                "pr-2 text-right sm:pr-1",
+              );
+              const rightChunkClass = cn(
+                chunkClass,
+                "pl-2 text-left sm:pl-1",
+              );
+              return Array.from({ length: rowCount }, (_, i) => (
+                <div
+                  key={i}
+                  className="grid w-full grid-cols-[1fr_auto_1fr] items-baseline"
+                >
+                  <span className={leftChunkClass}>
+                    {leftChunks[i] ?? ""}
+                  </span>
+                  <span
+                    className={cn(
+                      "shrink-0",
+                      i === 0 ? focalColorClassName : "invisible",
+                    )}
+                  >
+                    {focalCharacter || "•"}
+                  </span>
+                  <span className={rightChunkClass}>
+                    {rightChunks[i] ?? ""}
+                  </span>
+                </div>
+              ));
+            })()}
           </div>
         </div>
 
