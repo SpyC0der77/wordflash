@@ -3,10 +3,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore } from "react";
 
 const STORAGE_KEY = "speedreader-theme";
-const VALID_THEMES = ["black", "gray", "system"] as const;
+const VALID_THEMES = ["light", "black", "gray", "system"] as const;
 const DEFAULT_THEME: Theme = "black";
 
 const THEMES = {
+  light: "Light",
   black: "Black",
   gray: "Gray",
   system: "System",
@@ -20,7 +21,9 @@ function isValidTheme(value: unknown): value is Theme {
 
 function applyTheme(theme: Theme) {
   document.documentElement.setAttribute("data-theme", theme);
-  if (theme === "system") {
+  if (theme === "light") {
+    document.documentElement.classList.remove("dark");
+  } else if (theme === "system") {
     const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     document.documentElement.classList.toggle("dark", dark);
   } else {
@@ -73,7 +76,7 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
  * attribute, preventing FOUC and hydration mismatches.
  */
 export function ThemeScript() {
-  const scriptContent = `(function(){try{var t=localStorage.getItem("${STORAGE_KEY}");if(t==="gray"||t==="black"){document.documentElement.setAttribute("data-theme",t);document.documentElement.classList.add("dark")}else if(t==="system"){document.documentElement.setAttribute("data-theme","system");var d=window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.toggle("dark",d)}else{document.documentElement.setAttribute("data-theme","${DEFAULT_THEME}");document.documentElement.classList.add("dark")}}catch(e){document.documentElement.setAttribute("data-theme","${DEFAULT_THEME}");document.documentElement.classList.add("dark")}})()`;
+  const scriptContent = `(function(){try{var t=localStorage.getItem("${STORAGE_KEY}");if(t==="light"){document.documentElement.setAttribute("data-theme","light");document.documentElement.classList.remove("dark")}else if(t==="gray"||t==="black"){document.documentElement.setAttribute("data-theme",t);document.documentElement.classList.add("dark")}else if(t==="system"){document.documentElement.setAttribute("data-theme","system");var d=window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.toggle("dark",d)}else{document.documentElement.setAttribute("data-theme","${DEFAULT_THEME}");document.documentElement.classList.add("dark")}}catch(e){document.documentElement.setAttribute("data-theme","${DEFAULT_THEME}");document.documentElement.classList.add("dark")}})()`;
 
   return (
     <script
