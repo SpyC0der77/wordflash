@@ -237,6 +237,59 @@ export function SpeedReader(
     }
   }
 
+  const handlersRef = useRef({
+    handlePlayPauseRestart,
+    setEffectiveWordIndex,
+    activeWordIndex,
+    wordsLength: words.length,
+  });
+  useEffect(() => {
+    handlersRef.current = {
+      handlePlayPauseRestart,
+      setEffectiveWordIndex,
+      activeWordIndex,
+      wordsLength: words.length,
+    };
+  });
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const el = document.activeElement;
+      const tag = el?.tagName.toLowerCase();
+      if (
+        tag === "input" ||
+        tag === "textarea" ||
+        tag === "select" ||
+        el?.getAttribute("contenteditable") === "true" ||
+        el?.closest("[role='dialog']")
+      ) {
+        return;
+      }
+      const { handlePlayPauseRestart: playPause, setEffectiveWordIndex: setIndex, activeWordIndex: idx, wordsLength: len } =
+        handlersRef.current;
+      if (len === 0) return;
+
+      if (e.code === "Space") {
+        e.preventDefault();
+        playPause();
+        return;
+      }
+      if (e.code === "ArrowLeft") {
+        e.preventDefault();
+        setIndex(Math.max(0, idx - 1));
+        setIsPlaying(false);
+        return;
+      }
+      if (e.code === "ArrowRight") {
+        e.preventDefault();
+        setIndex(Math.min(len - 1, idx + 1));
+        setIsPlaying(false);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   function handleTextChange(value: string) {
     setInputText(value);
     setEffectiveWordIndex(0);
