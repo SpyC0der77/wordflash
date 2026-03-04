@@ -1,13 +1,29 @@
 "use client";
 
 import DOMPurify from "dompurify";
-import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, BookOpen, Gauge, History, Link2, Loader2, Menu, Settings } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpen,
+  Gauge,
+  History,
+  Link2,
+  Loader2,
+  Menu,
+  Settings,
+} from "lucide-react";
 import { Dialog } from "radix-ui";
 import { SpeedReader } from "@/components/speed-reader";
 import {
@@ -60,96 +76,104 @@ interface ArticleBodyProps {
   scrollToWord?: (span: HTMLElement) => void;
 }
 
-const ArticleBody = forwardRef<HTMLDivElement, ArticleBodyProps>(function ArticleBody(
-  { html, wordIndex, onWordClick, onMediaClick, scrollToWord },
-  ref,
-) {
-  const prevHighlightRef = useRef<HTMLElement | null>(null);
+const ArticleBody = forwardRef<HTMLDivElement, ArticleBodyProps>(
+  function ArticleBody(
+    { html, wordIndex, onWordClick, onMediaClick, scrollToWord },
+    ref,
+  ) {
+    const prevHighlightRef = useRef<HTMLElement | null>(null);
 
-  function handleClick(e: React.MouseEvent<HTMLDivElement>) {
-    const media = (e.target as HTMLElement).closest("img, video, iframe");
-    if (media && onMediaClick) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (media instanceof HTMLImageElement) {
-        onMediaClick({ src: media.src, type: "image" });
-        return;
-      }
-      if (media instanceof HTMLVideoElement) {
-        const src = media.currentSrc || media.src || media.querySelector("source")?.getAttribute("src");
-        if (src) onMediaClick({ src, type: "video" });
-        return;
-      }
-      if (media instanceof HTMLIFrameElement) {
-        onMediaClick({ src: media.src, type: "iframe" });
-        return;
-      }
-    }
-
-    const target = (e.target as HTMLElement).closest("[data-word-index]");
-    if (target) {
-      const index = parseInt(target.getAttribute("data-word-index") ?? "0", 10);
-      onWordClick?.(index);
-    }
-  }
-
-  useEffect(() => {
-    const container =
-      typeof ref !== "function" && ref !== null
-        ? (ref as React.RefObject<HTMLDivElement>).current
-        : null;
-    if (!container) return;
-
-    const span = container.querySelector(
-      `[data-word-index="${wordIndex}"]`,
-    ) as HTMLElement | null;
-
-    const prevSpan = prevHighlightRef.current;
-    const prevRect = prevSpan?.getBoundingClientRect();
-    if (prevSpan) {
-      prevSpan.classList.remove("speed-reader-highlight");
-      prevHighlightRef.current = null;
-    }
-
-    if (span) {
-      span.classList.add("speed-reader-highlight");
-      prevHighlightRef.current = span;
-      const rect = span.getBoundingClientRect();
-      const lineHeight = rect.height;
-      const isNewLine =
-        !prevRect || Math.abs(rect.top - prevRect.top) > lineHeight * 0.5;
-      const viewportHeight = window.innerHeight;
-      const margin = viewportHeight * 0.2;
-      const isComfortablyVisible =
-        rect.top >= margin && rect.bottom <= viewportHeight - margin;
-      if (isNewLine || !isComfortablyVisible) {
-        if (scrollToWord) {
-          scrollToWord(span);
-        } else {
-          span.scrollIntoView({ behavior: "smooth", block: "center" });
+    function handleClick(e: React.MouseEvent<HTMLDivElement>) {
+      const media = (e.target as HTMLElement).closest("img, video, iframe");
+      if (media && onMediaClick) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (media instanceof HTMLImageElement) {
+          onMediaClick({ src: media.src, type: "image" });
+          return;
+        }
+        if (media instanceof HTMLVideoElement) {
+          const src =
+            media.currentSrc ||
+            media.src ||
+            media.querySelector("source")?.getAttribute("src");
+          if (src) onMediaClick({ src, type: "video" });
+          return;
+        }
+        if (media instanceof HTMLIFrameElement) {
+          onMediaClick({ src: media.src, type: "iframe" });
+          return;
         }
       }
-    }
-  }, [wordIndex, ref, scrollToWord]);
 
-  return (
-    <div
-      ref={ref}
-      onClick={(onWordClick || onMediaClick) ? handleClick : undefined}
-      className={cn(
-        "reader-article space-y-4 [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:text-lg [&_h3]:font-semibold [&_p]:leading-7 [&_a]:text-primary [&_a]:underline [&_a:hover]:opacity-80 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_blockquote]:border-l-4 [&_blockquote]:border-muted-foreground/50 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_img]:rounded-lg [&_img]:max-w-full [&_img]:cursor-pointer [&_video]:cursor-pointer [&_iframe]:cursor-pointer",
-        onWordClick &&
-          "cursor-pointer [&_[data-word-index]]:cursor-pointer [&_[data-word-index]]:rounded-sm [&_[data-word-index]]:transition-colors [&_[data-word-index]]:hover:bg-muted/50",
-      )}
-      dangerouslySetInnerHTML={{
-        __html: DOMPurify.sanitize(html, {
-          ALLOWED_ATTR: ["href", "src", "alt", "title", "data-word-index"],
-          ADD_ATTR: ["data-word-index"],
-        }),
-      }}
-    />
-  );
-});
+      const target = (e.target as HTMLElement).closest("[data-word-index]");
+      if (target) {
+        const index = parseInt(
+          target.getAttribute("data-word-index") ?? "0",
+          10,
+        );
+        onWordClick?.(index);
+      }
+    }
+
+    useEffect(() => {
+      const container =
+        typeof ref !== "function" && ref !== null
+          ? (ref as React.RefObject<HTMLDivElement>).current
+          : null;
+      if (!container) return;
+
+      const span = container.querySelector(
+        `[data-word-index="${wordIndex}"]`,
+      ) as HTMLElement | null;
+
+      const prevSpan = prevHighlightRef.current;
+      const prevRect = prevSpan?.getBoundingClientRect();
+      if (prevSpan) {
+        prevSpan.classList.remove("speed-reader-highlight");
+        prevHighlightRef.current = null;
+      }
+
+      if (span) {
+        span.classList.add("speed-reader-highlight");
+        prevHighlightRef.current = span;
+        const rect = span.getBoundingClientRect();
+        const lineHeight = rect.height;
+        const isNewLine =
+          !prevRect || Math.abs(rect.top - prevRect.top) > lineHeight * 0.5;
+        const viewportHeight = window.innerHeight;
+        const margin = viewportHeight * 0.2;
+        const isComfortablyVisible =
+          rect.top >= margin && rect.bottom <= viewportHeight - margin;
+        if (isNewLine || !isComfortablyVisible) {
+          if (scrollToWord) {
+            scrollToWord(span);
+          } else {
+            span.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }
+      }
+    }, [wordIndex, ref, scrollToWord]);
+
+    return (
+      <div
+        ref={ref}
+        onClick={onWordClick || onMediaClick ? handleClick : undefined}
+        className={cn(
+          "reader-article space-y-4 [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:text-lg [&_h3]:font-semibold [&_p]:leading-7 [&_a]:text-primary [&_a]:underline [&_a:hover]:opacity-80 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_blockquote]:border-l-4 [&_blockquote]:border-muted-foreground/50 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_img]:rounded-lg [&_img]:max-w-full [&_img]:cursor-pointer [&_video]:cursor-pointer [&_iframe]:cursor-pointer",
+          onWordClick &&
+            "cursor-pointer [&_[data-word-index]]:cursor-pointer [&_[data-word-index]]:rounded-sm [&_[data-word-index]]:transition-colors [&_[data-word-index]]:hover:bg-muted/50",
+        )}
+        dangerouslySetInnerHTML={{
+          __html: DOMPurify.sanitize(html, {
+            ALLOWED_ATTR: ["href", "src", "alt", "title", "data-word-index"],
+            ADD_ATTR: ["data-word-index"],
+          }),
+        }}
+      />
+    );
+  },
+);
 
 interface ArticleData {
   title: string | null;
@@ -196,7 +220,9 @@ export default function ReaderPage() {
   const [showArticleOnMobile, setShowArticleOnMobile] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [mediaPreview, setMediaPreview] = useState<MediaPreview | null>(null);
-  const [previousArticles, setPreviousArticles] = useState<PreviousArticle[]>([]);
+  const [previousArticles, setPreviousArticles] = useState<PreviousArticle[]>(
+    [],
+  );
   const articleBodyRef = useRef<HTMLDivElement>(null);
   const articleHeaderRef = useRef<HTMLElement>(null);
   const articleScrollContainerRef = useRef<HTMLDivElement>(null);
@@ -219,8 +245,7 @@ export default function ReaderPage() {
         getComputedStyle(scrollContainer).overflow !== "visible";
       if (isScrollable && scrollContainer) {
         const containerRect = scrollContainer.getBoundingClientRect();
-        const visibleCenter =
-          containerRect.top + containerRect.height / 2;
+        const visibleCenter = containerRect.top + containerRect.height / 2;
         const delta = spanCenter - visibleCenter;
         scrollContainer.scrollBy({ top: delta, behavior: scrollBehavior });
       } else if (headerRect && panelRect) {
@@ -238,7 +263,8 @@ export default function ReaderPage() {
 
   // Preprocess content so trailing commas after links are attached to the link text.
   const processedContent = useMemo(
-    () => (article?.content ? attachTrailingCommasToLinks(article.content) : null),
+    () =>
+      article?.content ? attachTrailingCommasToLinks(article.content) : null,
     [article?.content],
   );
 
@@ -264,7 +290,9 @@ export default function ReaderPage() {
     try {
       const stored = localStorage.getItem(READING_POSITION_KEY);
       if (stored && url) {
-        const { url: storedUrl, wordIndex: storedIndex } = JSON.parse(stored) as {
+        const { url: storedUrl, wordIndex: storedIndex } = JSON.parse(
+          stored,
+        ) as {
           url?: string;
           wordIndex?: number;
         };
@@ -440,13 +468,13 @@ export default function ReaderPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <header
-          className={cn(
-            "sticky top-0 z-10 border-b border-border/50 print:hidden",
-            reduceTransparency
-              ? "bg-background"
-              : "bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60",
-          )}
-        >
+        className={cn(
+          "sticky top-0 z-10 border-b border-border/50 print:hidden",
+          reduceTransparency
+            ? "bg-background"
+            : "bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60",
+        )}
+      >
         <div className="mx-auto flex max-w-3xl items-center gap-4 px-4 py-4">
           <Button variant="ghost" size="icon" asChild>
             <Link href="/" aria-label="Back to home">
@@ -579,9 +607,7 @@ export default function ReaderPage() {
                     </label>
                     <Select
                       value={fontSize}
-                      onValueChange={(v) =>
-                        setFontSize(v as FontSizeKey)
-                      }
+                      onValueChange={(v) => setFontSize(v as FontSizeKey)}
                     >
                       <SelectTrigger id="reader-font-size">
                         <SelectValue />
@@ -592,7 +618,7 @@ export default function ReaderPage() {
                             <SelectItem key={key} value={key}>
                               {FONT_SIZES[key].label}
                             </SelectItem>
-                          )
+                          ),
                         )}
                       </SelectContent>
                     </Select>
@@ -606,9 +632,7 @@ export default function ReaderPage() {
                     </label>
                     <Select
                       value={fontFamily}
-                      onValueChange={(v) =>
-                        setFontFamily(v as FontFamilyKey)
-                      }
+                      onValueChange={(v) => setFontFamily(v as FontFamilyKey)}
                     >
                       <SelectTrigger id="reader-font-family">
                         <SelectValue />
@@ -619,7 +643,7 @@ export default function ReaderPage() {
                             <SelectItem key={key} value={key}>
                               {FONT_FAMILIES[key].label}
                             </SelectItem>
-                          )
+                          ),
                         )}
                       </SelectContent>
                     </Select>
@@ -687,9 +711,15 @@ export default function ReaderPage() {
                     />
                   </div>
                   <ul className="pt-2 text-xs text-muted-foreground list-disc pl-4 space-y-1">
-                    <li><Kbd>Space</Kbd> — play/pause</li>
-                    <li><Kbd>←</Kbd> <Kbd>→</Kbd> — skip words</li>
-                    <li><Kbd>Home</Kbd> <Kbd>End</Kbd> — jump to start/end</li>
+                    <li>
+                      <Kbd>Space</Kbd> — play/pause
+                    </li>
+                    <li>
+                      <Kbd>←</Kbd> <Kbd>→</Kbd> — skip words
+                    </li>
+                    <li>
+                      <Kbd>Home</Kbd> <Kbd>End</Kbd> — jump to start/end
+                    </li>
                   </ul>
                 </div>
               </Dialog.Content>
@@ -741,7 +771,10 @@ export default function ReaderPage() {
                 </p>
               )}
               <div
-                className={cn("mt-4 flex w-full print:hidden", !isCompactView && "hidden")}
+                className={cn(
+                  "mt-4 flex w-full print:hidden",
+                  !isCompactView && "hidden",
+                )}
               >
                 <Button
                   variant="outline"
@@ -775,7 +808,9 @@ export default function ReaderPage() {
               >
                 <ArticleBody
                   ref={articleBodyRef}
-                  html={wrappedContent ?? processedContent ?? article?.content ?? ""}
+                  html={
+                    wrappedContent ?? processedContent ?? article?.content ?? ""
+                  }
                   wordIndex={wordIndex}
                   onWordClick={handleWordClick}
                   onMediaClick={handleMediaClick}
@@ -815,7 +850,10 @@ export default function ReaderPage() {
       </main>
 
       {article && articleText && !isCompactView && (
-        <div ref={panelRef} className="fixed bottom-0 left-0 right-0 z-20 print:hidden">
+        <div
+          ref={panelRef}
+          className="fixed bottom-0 left-0 right-0 z-20 print:hidden"
+        >
           <SpeedReader
             key={article.content}
             variant="panel"
@@ -830,7 +868,10 @@ export default function ReaderPage() {
         </div>
       )}
 
-      <Dialog.Root open={!!mediaPreview} onOpenChange={(open) => !open && setMediaPreview(null)}>
+      <Dialog.Root
+        open={!!mediaPreview}
+        onOpenChange={(open) => !open && setMediaPreview(null)}
+      >
         <Dialog.Portal>
           <Dialog.Overlay
             className={cn(
