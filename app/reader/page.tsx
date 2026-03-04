@@ -800,6 +800,9 @@ export default function ReaderPage() {
                       <Kbd>Space</Kbd> — play/pause
                     </li>
                     <li>
+                      <Kbd>R</Kbd> — restart from beginning
+                    </li>
+                    <li>
                       <Kbd>←</Kbd> <Kbd>→</Kbd> — skip words
                     </li>
                     <li>

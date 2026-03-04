@@ -347,6 +347,12 @@ export function SpeedReader(
         playPause();
         return;
       }
+      if (e.code === "KeyR") {
+        e.preventDefault();
+        setIndex(0);
+        setIsPlaying(true);
+        return;
+      }
       if (e.code === "ArrowLeft") {
         e.preventDefault();
         setIndex(Math.max(0, idx - 1));
@@ -763,6 +769,9 @@ export function SpeedReader(
                     <Kbd>Space</Kbd> — play/pause
                   </li>
                   <li>
+                    <Kbd>R</Kbd> — restart from beginning
+                  </li>
+                  <li>
                     <Kbd>←</Kbd> <Kbd>→</Kbd> — skip words
                   </li>
                   <li>
@@ -787,7 +796,7 @@ export function SpeedReader(
           htmlFor="reader-text"
           className="mb-2 block text-sm font-medium text-muted-foreground"
         >
-          Text to read
+          Text to read{words.length > 0 && ` (${words.length} words)`}
         </label>
         <Textarea
           id="reader-text"
