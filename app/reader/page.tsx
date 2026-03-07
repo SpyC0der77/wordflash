@@ -13,7 +13,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import {
   ArrowLeft,
   Bookmark,
@@ -37,13 +36,6 @@ import {
 } from "@/components/ui/drawer";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -52,20 +44,11 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Kbd } from "@/components/ui/kbd";
-import { Slider } from "@/components/ui/slider";
 import { useReaderSettings } from "@/lib/reader-settings-context";
 import { useReduceMotion } from "@/lib/reduce-motion-context";
 import { useReduceTransparency } from "@/lib/reduce-transparency-context";
-import { useTheme, THEMES, type Theme } from "@/lib/theme-context";
-import {
-  FOCAL_COLORS,
-  FONT_FAMILIES,
-  FONT_SIZES,
-  type FocalColorKey,
-  type FontFamilyKey,
-  type FontSizeKey,
-} from "@/components/speed-reader";
+import { useTheme } from "@/lib/theme-context";
+import { ReaderSettingsContent } from "@/app/reader/reader-settings-content";
 import {
   attachTrailingCommasToLinks,
   calculateReadingTimeMs,
@@ -688,204 +671,28 @@ export default function ReaderPage() {
                     Adjust pause durations (values at 250 WPM; scale with speed).
                   </Dialog.Description>
                   <div className="min-h-0 flex-1 overflow-y-auto">
-                  <div className="space-y-4">
-                  <div>
-                    <label
-                      htmlFor="reader-theme-select"
-                      className="mb-2 block text-sm font-medium text-zinc-100"
-                    >
-                      Theme
-                    </label>
-                    <Select
-                      value={theme}
-                      onValueChange={(v) => setTheme(v as Theme)}
-                    >
-                      <SelectTrigger id="reader-theme-select">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Object.keys(THEMES) as Theme[]).map((key) => (
-                          <SelectItem key={key} value={key}>
-                            {THEMES[key]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="reader-font-size"
-                      className="mb-2 block text-sm font-medium text-zinc-100"
-                    >
-                      Font size
-                    </label>
-                    <Select
-                      value={fontSize}
-                      onValueChange={(v) => setFontSize(v as FontSizeKey)}
-                    >
-                      <SelectTrigger id="reader-font-size">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Object.keys(FONT_SIZES) as FontSizeKey[]).map(
-                          (key) => (
-                            <SelectItem key={key} value={key}>
-                              {FONT_SIZES[key].label}
-                            </SelectItem>
-                          ),
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="reader-font-family"
-                      className="mb-2 block text-sm font-medium text-zinc-100"
-                    >
-                      Font family
-                    </label>
-                    <Select
-                      value={fontFamily}
-                      onValueChange={(v) => setFontFamily(v as FontFamilyKey)}
-                    >
-                      <SelectTrigger id="reader-font-family">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Object.keys(FONT_FAMILIES) as FontFamilyKey[]).map(
-                          (key) => (
-                            <SelectItem key={key} value={key}>
-                              {FONT_FAMILIES[key].label}
-                            </SelectItem>
-                          ),
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="reader-focal-color"
-                      className="mb-2 block text-sm font-medium text-zinc-100"
-                    >
-                      Focal character color
-                    </label>
-                    <Select
-                      value={focalColor}
-                      onValueChange={(v) => setFocalColor(v as FocalColorKey)}
-                    >
-                      <SelectTrigger id="reader-focal-color">
-                        <span className="flex items-center gap-2">
-                          <span
-                            className={cn(
-                              "size-3 shrink-0 rounded-full",
-                              FOCAL_COLORS[focalColor].previewClass,
-                            )}
-                          />
-                          <SelectValue />
-                        </span>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Object.keys(FOCAL_COLORS) as FocalColorKey[]).map(
-                          (key) => (
-                            <SelectItem key={key} value={key}>
-                              <span className="flex items-center gap-2">
-                                <span
-                                  className={cn(
-                                    "size-3 shrink-0 rounded-full",
-                                    FOCAL_COLORS[key].previewClass,
-                                  )}
-                                />
-                                {FOCAL_COLORS[key].label}
-                              </span>
-                            </SelectItem>
-                          ),
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="sentence-end"
-                      className="mb-2 block text-sm font-medium text-zinc-100"
-                    >
-                      Sentence End Duration ({sentenceEndDurationMs}ms)
-                    </label>
-                    <Slider
-                      id="sentence-end"
-                      min={0}
-                      max={1000}
-                      step={50}
-                      value={[sentenceEndDurationMs]}
-                      onValueChange={([v]) =>
-                        setSentenceEndDurationMs(v ?? 500)
-                      }
+                    <ReaderSettingsContent
+                      idPrefix=""
+                      theme={theme}
+                      setTheme={setTheme}
+                      fontSize={fontSize}
+                      setFontSize={setFontSize}
+                      fontFamily={fontFamily}
+                      setFontFamily={setFontFamily}
+                      focalColor={focalColor}
+                      setFocalColor={setFocalColor}
+                      sentenceEndDurationMs={sentenceEndDurationMs}
+                      setSentenceEndDurationMs={setSentenceEndDurationMs}
+                      speechBreakDurationMs={speechBreakDurationMs}
+                      setSpeechBreakDurationMs={setSpeechBreakDurationMs}
+                      reduceTransparency={reduceTransparency}
+                      setReduceTransparency={setReduceTransparency}
+                      reduceMotion={reduceMotion}
+                      setReduceMotion={setReduceMotion}
+                      showKeyboardShortcuts
                     />
                   </div>
-                  <div>
-                    <label
-                      htmlFor="speech-break"
-                      className="mb-2 block text-sm font-medium text-zinc-100"
-                    >
-                      Speech Break Duration ({speechBreakDurationMs}ms)
-                    </label>
-                    <Slider
-                      id="speech-break"
-                      min={0}
-                      max={1000}
-                      step={25}
-                      value={[speechBreakDurationMs]}
-                      onValueChange={([v]) =>
-                        setSpeechBreakDurationMs(v ?? 250)
-                      }
-                    />
-                  </div>
-                  <div className="flex items-center justify-between gap-4">
-                    <label
-                      htmlFor="reduce-transparency"
-                      className="text-sm font-medium text-zinc-100"
-                    >
-                      Reduce transparency
-                    </label>
-                    <Switch
-                      id="reduce-transparency"
-                      checked={reduceTransparency}
-                      onCheckedChange={setReduceTransparency}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between gap-4">
-                    <label
-                      htmlFor="reduce-motion"
-                      className="text-sm font-medium text-zinc-100"
-                    >
-                      Reduce motion
-                    </label>
-                    <Switch
-                      id="reduce-motion"
-                      checked={reduceMotion}
-                      onCheckedChange={setReduceMotion}
-                    />
-                  </div>
-                  <ul className="pt-2 text-xs text-muted-foreground list-disc pl-4 space-y-1">
-                    <li>
-                      <Kbd>Space</Kbd> — play/pause
-                    </li>
-                    <li>
-                      <Kbd>R</Kbd> — restart from beginning
-                    </li>
-                    <li>
-                      <Kbd>←</Kbd> <Kbd>→</Kbd> — skip words
-                    </li>
-                    <li>
-                      <Kbd>Home</Kbd> <Kbd>End</Kbd> — jump to start/end
-                    </li>
-                    <li>
-                      <Kbd>⌘</Kbd> <Kbd>⇧</Kbd> <Kbd>C</Kbd> — copy shareable
-                      link
-                    </li>
-                  </ul>
-                </div>
-                </div>
-              </Dialog.Content>
+                </Dialog.Content>
             </Dialog.Portal>
           </Dialog.Root>
           ) : (
@@ -903,184 +710,26 @@ export default function ReaderPage() {
                   </DrawerDescription>
                 </DrawerHeader>
                 <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
-                  <div className="space-y-4">
-                    <div>
-                      <label
-                        htmlFor="drawer-reader-theme-select"
-                        className="mb-2 block text-sm font-medium text-zinc-100"
-                      >
-                        Theme
-                      </label>
-                      <Select
-                        value={theme}
-                        onValueChange={(v) => setTheme(v as Theme)}
-                      >
-                        <SelectTrigger id="drawer-reader-theme-select">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(Object.keys(THEMES) as Theme[]).map((key) => (
-                            <SelectItem key={key} value={key}>
-                              {THEMES[key]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="drawer-reader-font-size"
-                        className="mb-2 block text-sm font-medium text-zinc-100"
-                      >
-                        Font size
-                      </label>
-                      <Select
-                        value={fontSize}
-                        onValueChange={(v) => setFontSize(v as FontSizeKey)}
-                      >
-                        <SelectTrigger id="drawer-reader-font-size">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(Object.keys(FONT_SIZES) as FontSizeKey[]).map(
-                            (key) => (
-                              <SelectItem key={key} value={key}>
-                                {FONT_SIZES[key].label}
-                              </SelectItem>
-                            ),
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="drawer-reader-font-family"
-                        className="mb-2 block text-sm font-medium text-zinc-100"
-                      >
-                        Font family
-                      </label>
-                      <Select
-                        value={fontFamily}
-                        onValueChange={(v) => setFontFamily(v as FontFamilyKey)}
-                      >
-                        <SelectTrigger id="drawer-reader-font-family">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(Object.keys(FONT_FAMILIES) as FontFamilyKey[]).map(
-                            (key) => (
-                              <SelectItem key={key} value={key}>
-                                {FONT_FAMILIES[key].label}
-                              </SelectItem>
-                            ),
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="drawer-reader-focal-color"
-                        className="mb-2 block text-sm font-medium text-zinc-100"
-                      >
-                        Focal character color
-                      </label>
-                      <Select
-                        value={focalColor}
-                        onValueChange={(v) => setFocalColor(v as FocalColorKey)}
-                      >
-                        <SelectTrigger id="drawer-reader-focal-color">
-                          <span className="flex items-center gap-2">
-                            <span
-                              className={cn(
-                                "size-3 shrink-0 rounded-full",
-                                FOCAL_COLORS[focalColor].previewClass,
-                              )}
-                            />
-                            <SelectValue />
-                          </span>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(Object.keys(FOCAL_COLORS) as FocalColorKey[]).map(
-                            (key) => (
-                              <SelectItem key={key} value={key}>
-                                <span className="flex items-center gap-2">
-                                  <span
-                                    className={cn(
-                                      "size-3 shrink-0 rounded-full",
-                                      FOCAL_COLORS[key].previewClass,
-                                    )}
-                                  />
-                                  {FOCAL_COLORS[key].label}
-                                </span>
-                              </SelectItem>
-                            ),
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="drawer-sentence-end"
-                        className="mb-2 block text-sm font-medium text-zinc-100"
-                      >
-                        Sentence End Duration ({sentenceEndDurationMs}ms)
-                      </label>
-                      <Slider
-                        id="drawer-sentence-end"
-                        min={0}
-                        max={1000}
-                        step={50}
-                        value={[sentenceEndDurationMs]}
-                        onValueChange={([v]) =>
-                          setSentenceEndDurationMs(v ?? 500)
-                        }
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="drawer-speech-break"
-                        className="mb-2 block text-sm font-medium text-zinc-100"
-                      >
-                        Speech Break Duration ({speechBreakDurationMs}ms)
-                      </label>
-                      <Slider
-                        id="drawer-speech-break"
-                        min={0}
-                        max={1000}
-                        step={25}
-                        value={[speechBreakDurationMs]}
-                        onValueChange={([v]) =>
-                          setSpeechBreakDurationMs(v ?? 250)
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between gap-4">
-                      <label
-                        htmlFor="drawer-reduce-transparency"
-                        className="text-sm font-medium text-zinc-100"
-                      >
-                        Reduce transparency
-                      </label>
-                      <Switch
-                        id="drawer-reduce-transparency"
-                        checked={reduceTransparency}
-                        onCheckedChange={setReduceTransparency}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between gap-4">
-                      <label
-                        htmlFor="drawer-reduce-motion"
-                        className="text-sm font-medium text-zinc-100"
-                      >
-                        Reduce motion
-                      </label>
-                      <Switch
-                        id="drawer-reduce-motion"
-                        checked={reduceMotion}
-                        onCheckedChange={setReduceMotion}
-                      />
-                    </div>
-                  </div>
+                  <ReaderSettingsContent
+                    idPrefix="drawer-"
+                    theme={theme}
+                    setTheme={setTheme}
+                    fontSize={fontSize}
+                    setFontSize={setFontSize}
+                    fontFamily={fontFamily}
+                    setFontFamily={setFontFamily}
+                    focalColor={focalColor}
+                    setFocalColor={setFocalColor}
+                    sentenceEndDurationMs={sentenceEndDurationMs}
+                    setSentenceEndDurationMs={setSentenceEndDurationMs}
+                    speechBreakDurationMs={speechBreakDurationMs}
+                    setSpeechBreakDurationMs={setSpeechBreakDurationMs}
+                    reduceTransparency={reduceTransparency}
+                    setReduceTransparency={setReduceTransparency}
+                    reduceMotion={reduceMotion}
+                    setReduceMotion={setReduceMotion}
+                    showKeyboardShortcuts
+                  />
                 </div>
               </DrawerContent>
             </Drawer>
