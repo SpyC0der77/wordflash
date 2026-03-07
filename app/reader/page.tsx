@@ -13,7 +13,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import {
   ArrowLeft,
   Bookmark,
@@ -28,12 +27,14 @@ import {
 import { Dialog } from "radix-ui";
 import { SpeedReader } from "@/components/speed-reader";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,20 +44,11 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Kbd } from "@/components/ui/kbd";
-import { Slider } from "@/components/ui/slider";
 import { useReaderSettings } from "@/lib/reader-settings-context";
 import { useReduceMotion } from "@/lib/reduce-motion-context";
 import { useReduceTransparency } from "@/lib/reduce-transparency-context";
-import { useTheme, THEMES, type Theme } from "@/lib/theme-context";
-import {
-  FOCAL_COLORS,
-  FONT_FAMILIES,
-  FONT_SIZES,
-  type FocalColorKey,
-  type FontFamilyKey,
-  type FontSizeKey,
-} from "@/components/speed-reader";
+import { useTheme } from "@/lib/theme-context";
+import { ReaderSettingsContent } from "@/app/reader/reader-settings-content";
 import {
   attachTrailingCommasToLinks,
   calculateReadingTimeMs,
@@ -223,6 +215,7 @@ export default function ReaderPage() {
   const [error, setError] = useState<string | null>(null);
   const [wordIndex, setWordIndex] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const isDesktop = useMediaQuery("(min-width: 768px)");
   const [showArticleOnMobile, setShowArticleOnMobile] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [mediaPreview, setMediaPreview] = useState<MediaPreview | null>(null);
@@ -528,13 +521,16 @@ export default function ReaderPage() {
             : "bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60",
         )}
       >
-        <div className="mx-auto flex max-w-3xl items-center gap-4 px-4 py-4">
+        <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-2 px-3 py-3 sm:gap-4 sm:px-4 sm:py-4">
           <Button variant="ghost" size="icon" asChild>
             <Link href="/" aria-label="Back to home">
               <ArrowLeft className="size-5" />
             </Link>
           </Button>
-          <form onSubmit={handleSubmit} className="flex flex-1 gap-2">
+          <form
+            onSubmit={handleSubmit}
+            className="order-last flex w-full flex-1 gap-2 sm:order-none sm:w-auto"
+          >
             <Input
               type="url"
               placeholder="Enter article URL..."
@@ -621,7 +617,7 @@ export default function ReaderPage() {
               />
               <Dialog.Content
                 className={cn(
-                  "fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border bg-zinc-900 p-6 shadow-xl",
+                  "fixed left-1/2 top-1/2 z-50 w-[calc(100vw-1.5rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-zinc-900 p-4 shadow-xl sm:rounded-xl sm:p-6",
                   reduceTransparency ? "border-zinc-700" : "border-white/10",
                   "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
                 )}
@@ -646,238 +642,109 @@ export default function ReaderPage() {
               </Dialog.Content>
             </Dialog.Portal>
           </Dialog.Root>
-          <Dialog.Root open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-            <Dialog.Trigger asChild>
-              <Button variant="ghost" size="icon" aria-label="Open settings">
-                <Settings className="size-5" />
-              </Button>
-            </Dialog.Trigger>
-            <Dialog.Portal>
-              <Dialog.Overlay
-                className={cn(
-                  "fixed inset-0 z-50",
-                  reduceTransparency ? "bg-black" : "bg-black/80",
-                  "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-                )}
-              />
-              <Dialog.Content
-                className={cn(
-                  "fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border bg-zinc-900 p-6 shadow-xl",
-                  reduceTransparency ? "border-zinc-700" : "border-white/10",
-                  "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-                )}
-              >
-                <Dialog.Title className="mb-4 text-lg font-semibold text-zinc-100">
-                  Reader Settings
-                </Dialog.Title>
-                <Dialog.Description className="mb-4 text-sm text-muted-foreground">
-                  Adjust pause durations (values at 250 WPM; scale with speed).
-                </Dialog.Description>
-                <div className="space-y-4">
-                  <div>
-                    <label
-                      htmlFor="reader-theme-select"
-                      className="mb-2 block text-sm font-medium text-zinc-100"
-                    >
-                      Theme
-                    </label>
-                    <Select
-                      value={theme}
-                      onValueChange={(v) => setTheme(v as Theme)}
-                    >
-                      <SelectTrigger id="reader-theme-select">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Object.keys(THEMES) as Theme[]).map((key) => (
-                          <SelectItem key={key} value={key}>
-                            {THEMES[key]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="reader-font-size"
-                      className="mb-2 block text-sm font-medium text-zinc-100"
-                    >
-                      Font size
-                    </label>
-                    <Select
-                      value={fontSize}
-                      onValueChange={(v) => setFontSize(v as FontSizeKey)}
-                    >
-                      <SelectTrigger id="reader-font-size">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Object.keys(FONT_SIZES) as FontSizeKey[]).map(
-                          (key) => (
-                            <SelectItem key={key} value={key}>
-                              {FONT_SIZES[key].label}
-                            </SelectItem>
-                          ),
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="reader-font-family"
-                      className="mb-2 block text-sm font-medium text-zinc-100"
-                    >
-                      Font family
-                    </label>
-                    <Select
-                      value={fontFamily}
-                      onValueChange={(v) => setFontFamily(v as FontFamilyKey)}
-                    >
-                      <SelectTrigger id="reader-font-family">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Object.keys(FONT_FAMILIES) as FontFamilyKey[]).map(
-                          (key) => (
-                            <SelectItem key={key} value={key}>
-                              {FONT_FAMILIES[key].label}
-                            </SelectItem>
-                          ),
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="reader-focal-color"
-                      className="mb-2 block text-sm font-medium text-zinc-100"
-                    >
-                      Focal character color
-                    </label>
-                    <Select
-                      value={focalColor}
-                      onValueChange={(v) => setFocalColor(v as FocalColorKey)}
-                    >
-                      <SelectTrigger id="reader-focal-color">
-                        <span className="flex items-center gap-2">
-                          <span
-                            className={cn(
-                              "size-3 shrink-0 rounded-full",
-                              FOCAL_COLORS[focalColor].previewClass,
-                            )}
-                          />
-                          <SelectValue />
-                        </span>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Object.keys(FOCAL_COLORS) as FocalColorKey[]).map(
-                          (key) => (
-                            <SelectItem key={key} value={key}>
-                              <span className="flex items-center gap-2">
-                                <span
-                                  className={cn(
-                                    "size-3 shrink-0 rounded-full",
-                                    FOCAL_COLORS[key].previewClass,
-                                  )}
-                                />
-                                {FOCAL_COLORS[key].label}
-                              </span>
-                            </SelectItem>
-                          ),
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="sentence-end"
-                      className="mb-2 block text-sm font-medium text-zinc-100"
-                    >
-                      Sentence End Duration ({sentenceEndDurationMs}ms)
-                    </label>
-                    <Slider
-                      id="sentence-end"
-                      min={0}
-                      max={1000}
-                      step={50}
-                      value={[sentenceEndDurationMs]}
-                      onValueChange={([v]) =>
-                        setSentenceEndDurationMs(v ?? 500)
-                      }
+          {isDesktop ? (
+            <Dialog.Root open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+              <Dialog.Trigger asChild>
+                <Button variant="ghost" size="icon" aria-label="Open settings">
+                  <Settings className="size-5" />
+                </Button>
+              </Dialog.Trigger>
+              <Dialog.Portal>
+                <Dialog.Overlay
+                  className={cn(
+                    "fixed inset-0 z-50",
+                    reduceTransparency ? "bg-black" : "bg-black/80",
+                    "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+                  )}
+                />
+                <Dialog.Content
+                  className={cn(
+                    "fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-1.5rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border bg-background p-4 shadow-xl sm:rounded-xl sm:p-6",
+                    reduceTransparency ? "border-zinc-700" : "border-white/10",
+                    "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+                  )}
+                >
+                  <Dialog.Title className="mb-2 shrink-0 text-lg font-semibold text-foreground">
+                    Reader Settings
+                  </Dialog.Title>
+                  <Dialog.Description className="mb-4 shrink-0 text-sm text-muted-foreground">
+                    Adjust pause durations (values at 250 WPM; scale with speed).
+                  </Dialog.Description>
+                  <div className="min-h-0 flex-1 overflow-y-auto">
+                    <ReaderSettingsContent
+                      idPrefix=""
+                      theme={theme}
+                      setTheme={setTheme}
+                      fontSize={fontSize}
+                      setFontSize={setFontSize}
+                      fontFamily={fontFamily}
+                      setFontFamily={setFontFamily}
+                      focalColor={focalColor}
+                      setFocalColor={setFocalColor}
+                      sentenceEndDurationMs={sentenceEndDurationMs}
+                      setSentenceEndDurationMs={setSentenceEndDurationMs}
+                      speechBreakDurationMs={speechBreakDurationMs}
+                      setSpeechBreakDurationMs={setSpeechBreakDurationMs}
+                      reduceTransparency={reduceTransparency}
+                      setReduceTransparency={setReduceTransparency}
+                      reduceMotion={reduceMotion}
+                      setReduceMotion={setReduceMotion}
+                      showKeyboardShortcuts
                     />
                   </div>
-                  <div>
-                    <label
-                      htmlFor="speech-break"
-                      className="mb-2 block text-sm font-medium text-zinc-100"
-                    >
-                      Speech Break Duration ({speechBreakDurationMs}ms)
-                    </label>
-                    <Slider
-                      id="speech-break"
-                      min={0}
-                      max={1000}
-                      step={25}
-                      value={[speechBreakDurationMs]}
-                      onValueChange={([v]) =>
-                        setSpeechBreakDurationMs(v ?? 250)
-                      }
-                    />
-                  </div>
-                  <div className="flex items-center justify-between gap-4">
-                    <label
-                      htmlFor="reduce-transparency"
-                      className="text-sm font-medium text-zinc-100"
-                    >
-                      Reduce transparency
-                    </label>
-                    <Switch
-                      id="reduce-transparency"
-                      checked={reduceTransparency}
-                      onCheckedChange={setReduceTransparency}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between gap-4">
-                    <label
-                      htmlFor="reduce-motion"
-                      className="text-sm font-medium text-zinc-100"
-                    >
-                      Reduce motion
-                    </label>
-                    <Switch
-                      id="reduce-motion"
-                      checked={reduceMotion}
-                      onCheckedChange={setReduceMotion}
-                    />
-                  </div>
-                  <ul className="pt-2 text-xs text-muted-foreground list-disc pl-4 space-y-1">
-                    <li>
-                      <Kbd>Space</Kbd> — play/pause
-                    </li>
-                    <li>
-                      <Kbd>R</Kbd> — restart from beginning
-                    </li>
-                    <li>
-                      <Kbd>←</Kbd> <Kbd>→</Kbd> — skip words
-                    </li>
-                    <li>
-                      <Kbd>Home</Kbd> <Kbd>End</Kbd> — jump to start/end
-                    </li>
-                    <li>
-                      <Kbd>⌘</Kbd> <Kbd>⇧</Kbd> <Kbd>C</Kbd> — copy shareable
-                      link
-                    </li>
-                  </ul>
-                </div>
-              </Dialog.Content>
+                </Dialog.Content>
             </Dialog.Portal>
           </Dialog.Root>
+          ) : (
+            <Drawer open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+              <DrawerTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="Open settings">
+                  <Settings className="size-5" />
+                </Button>
+              </DrawerTrigger>
+              <DrawerContent
+                className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden"
+                overlayClassName={
+                  reduceTransparency ? "bg-black" : undefined
+                }
+              >
+                <DrawerHeader className="shrink-0 text-left">
+                  <DrawerTitle>Reader Settings</DrawerTitle>
+                  <DrawerDescription>
+                    Adjust pause durations (values at 250 WPM; scale with speed).
+                  </DrawerDescription>
+                </DrawerHeader>
+                <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+                  <ReaderSettingsContent
+                    idPrefix="drawer-"
+                    theme={theme}
+                    setTheme={setTheme}
+                    fontSize={fontSize}
+                    setFontSize={setFontSize}
+                    fontFamily={fontFamily}
+                    setFontFamily={setFontFamily}
+                    focalColor={focalColor}
+                    setFocalColor={setFocalColor}
+                    sentenceEndDurationMs={sentenceEndDurationMs}
+                    setSentenceEndDurationMs={setSentenceEndDurationMs}
+                    speechBreakDurationMs={speechBreakDurationMs}
+                    setSpeechBreakDurationMs={setSpeechBreakDurationMs}
+                    reduceTransparency={reduceTransparency}
+                    setReduceTransparency={setReduceTransparency}
+                    reduceMotion={reduceMotion}
+                    setReduceMotion={setReduceMotion}
+                    showKeyboardShortcuts
+                  />
+                </div>
+              </DrawerContent>
+            </Drawer>
+          )}
         </div>
       </header>
 
       <main
         className={cn(
-          "mx-auto flex max-w-3xl flex-1 flex-col px-4 pt-8",
+          "mx-auto flex max-w-3xl flex-1 flex-col px-4 pt-5 sm:pt-8",
           article && "min-h-0",
         )}
         style={
@@ -909,11 +776,11 @@ export default function ReaderPage() {
                     .join(" · ")}
                 </p>
               )}
-              <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
+              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl">
                 {article.title ?? "Untitled"}
               </h1>
               {article.excerpt && (
-                <p className="mt-3 text-lg text-muted-foreground">
+                <p className="mt-3 text-base text-muted-foreground sm:text-lg">
                   {article.excerpt}
                 </p>
               )}
@@ -988,7 +855,7 @@ export default function ReaderPage() {
         )}
 
         {!article && !error && !isLoading && (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="flex flex-col items-center justify-center py-16 text-center sm:py-24">
             <p className="text-muted-foreground">
               Paste an article URL above to extract and read it in a clean,
               focused view.
@@ -1031,7 +898,7 @@ export default function ReaderPage() {
           />
           <Dialog.Content
             className={cn(
-              "fixed left-1/2 top-1/2 z-50 max-h-[90vh] max-w-[90vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg border border-white/10 bg-black p-2 focus:outline-none",
+              "fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-[90vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg border border-white/10 bg-black p-2 focus:outline-none",
               "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
             )}
           >

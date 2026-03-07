@@ -1,9 +1,5 @@
 export function parseWords(text: string): string[] {
-  return text
-    .replace(/\s+/g, " ")
-    .trim()
-    .split(" ")
-    .filter(Boolean);
+  return text.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
 }
 
 export function getFocalCharacterIndex(word: string): number {
