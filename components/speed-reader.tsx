@@ -813,12 +813,12 @@ export function SpeedReader(
               />
               <Dialog.Content
                 className={cn(
-                  "fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-1.5rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border bg-zinc-900 p-4 shadow-xl sm:rounded-xl sm:p-6",
+                  "fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-1.5rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border bg-background p-4 shadow-xl sm:rounded-xl sm:p-6",
                   reduceTransparency ? "border-zinc-700" : "border-white/10",
                   "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
                 )}
               >
-                <Dialog.Title className="mb-2 shrink-0 text-lg font-semibold text-zinc-100">
+                <Dialog.Title className="mb-2 shrink-0 text-lg font-semibold text-foreground">
                   Settings
                 </Dialog.Title>
                 <Dialog.Description className="mb-4 shrink-0 text-sm text-muted-foreground">
@@ -860,7 +860,12 @@ export function SpeedReader(
                 <Settings className="size-5" />
               </Button>
             </DrawerTrigger>
-            <DrawerContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden">
+            <DrawerContent
+              className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden"
+              overlayClassName={
+                reduceTransparency ? "bg-black" : undefined
+              }
+            >
               <DrawerHeader className="shrink-0 text-left">
                 <DrawerTitle>Settings</DrawerTitle>
                 <DrawerDescription>

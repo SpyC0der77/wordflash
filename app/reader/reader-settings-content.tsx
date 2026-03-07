@@ -239,7 +239,8 @@ export function ReaderSettingsContent({
             <Kbd>Home</Kbd> <Kbd>End</Kbd> — jump to start/end
           </li>
           <li>
-            <Kbd>⌘</Kbd> <Kbd>⇧</Kbd> <Kbd>C</Kbd> — copy shareable link
+            <Kbd>Ctrl</Kbd>/<Kbd>⌘</Kbd> + <Kbd>⇧</Kbd> + <Kbd>C</Kbd> — copy
+            shareable link
           </li>
         </ul>
       )}
