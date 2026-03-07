@@ -151,7 +151,7 @@ export function SpeedReaderSettingsContent({
       <div>
         <label
           htmlFor={`${idPrefix}theme-select`}
-          className="mb-2 block text-sm font-medium text-zinc-100"
+          className="mb-2 block text-sm font-medium text-foreground"
         >
           Theme
         </label>
@@ -171,7 +171,7 @@ export function SpeedReaderSettingsContent({
       <div>
         <label
           htmlFor={`${idPrefix}font-size-select`}
-          className="mb-2 block text-sm font-medium text-zinc-100"
+          className="mb-2 block text-sm font-medium text-foreground"
         >
           Font size
         </label>
@@ -191,7 +191,7 @@ export function SpeedReaderSettingsContent({
       <div>
         <label
           htmlFor={`${idPrefix}font-family-select`}
-          className="mb-2 block text-sm font-medium text-zinc-100"
+          className="mb-2 block text-sm font-medium text-foreground"
         >
           Font family
         </label>
@@ -214,7 +214,7 @@ export function SpeedReaderSettingsContent({
       <div>
         <label
           htmlFor={`${idPrefix}focal-color-select`}
-          className="mb-2 block text-sm font-medium text-zinc-100"
+          className="mb-2 block text-sm font-medium text-foreground"
         >
           Focal character color
         </label>
@@ -253,7 +253,7 @@ export function SpeedReaderSettingsContent({
       <div>
         <label
           htmlFor={`${idPrefix}sentence-end-full`}
-          className="mb-2 block text-sm font-medium text-zinc-100"
+          className="mb-2 block text-sm font-medium text-foreground"
         >
           Sentence End Duration ({sentenceEndDurationMs}ms)
         </label>
@@ -271,7 +271,7 @@ export function SpeedReaderSettingsContent({
       <div>
         <label
           htmlFor={`${idPrefix}speech-break-full`}
-          className="mb-2 block text-sm font-medium text-zinc-100"
+          className="mb-2 block text-sm font-medium text-foreground"
         >
           Speech Break Duration ({speechBreakDurationMs}ms)
         </label>
@@ -289,7 +289,7 @@ export function SpeedReaderSettingsContent({
       <div className="flex items-center justify-between gap-4">
         <label
           htmlFor={`${idPrefix}reduce-transparency-speedreader`}
-          className="text-sm font-medium text-zinc-100"
+          className="text-sm font-medium text-foreground"
         >
           Reduce transparency
         </label>
@@ -302,7 +302,7 @@ export function SpeedReaderSettingsContent({
       <div className="flex items-center justify-between gap-4">
         <label
           htmlFor={`${idPrefix}reduce-motion-speedreader`}
-          className="text-sm font-medium text-zinc-100"
+          className="text-sm font-medium text-foreground"
         >
           Reduce motion
         </label>

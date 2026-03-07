@@ -67,7 +67,7 @@ export function ReaderSettingsContent({
       <div>
         <label
           htmlFor={`${idPrefix}reader-theme-select`}
-          className="mb-2 block text-sm font-medium text-zinc-100"
+          className="mb-2 block text-sm font-medium text-foreground"
         >
           Theme
         </label>
@@ -87,7 +87,7 @@ export function ReaderSettingsContent({
       <div>
         <label
           htmlFor={`${idPrefix}reader-font-size`}
-          className="mb-2 block text-sm font-medium text-zinc-100"
+          className="mb-2 block text-sm font-medium text-foreground"
         >
           Font size
         </label>
@@ -107,7 +107,7 @@ export function ReaderSettingsContent({
       <div>
         <label
           htmlFor={`${idPrefix}reader-font-family`}
-          className="mb-2 block text-sm font-medium text-zinc-100"
+          className="mb-2 block text-sm font-medium text-foreground"
         >
           Font family
         </label>
@@ -130,7 +130,7 @@ export function ReaderSettingsContent({
       <div>
         <label
           htmlFor={`${idPrefix}reader-focal-color`}
-          className="mb-2 block text-sm font-medium text-zinc-100"
+          className="mb-2 block text-sm font-medium text-foreground"
         >
           Focal character color
         </label>
@@ -169,7 +169,7 @@ export function ReaderSettingsContent({
       <div>
         <label
           htmlFor={`${idPrefix}sentence-end`}
-          className="mb-2 block text-sm font-medium text-zinc-100"
+          className="mb-2 block text-sm font-medium text-foreground"
         >
           Sentence End Duration ({sentenceEndDurationMs}ms)
         </label>
@@ -185,7 +185,7 @@ export function ReaderSettingsContent({
       <div>
         <label
           htmlFor={`${idPrefix}speech-break`}
-          className="mb-2 block text-sm font-medium text-zinc-100"
+          className="mb-2 block text-sm font-medium text-foreground"
         >
           Speech Break Duration ({speechBreakDurationMs}ms)
         </label>
@@ -201,7 +201,7 @@ export function ReaderSettingsContent({
       <div className="flex items-center justify-between gap-4">
         <label
           htmlFor={`${idPrefix}reduce-transparency`}
-          className="text-sm font-medium text-zinc-100"
+          className="text-sm font-medium text-foreground"
         >
           Reduce transparency
         </label>
@@ -214,7 +214,7 @@ export function ReaderSettingsContent({
       <div className="flex items-center justify-between gap-4">
         <label
           htmlFor={`${idPrefix}reduce-motion`}
-          className="text-sm font-medium text-zinc-100"
+          className="text-sm font-medium text-foreground"
         >
           Reduce motion
         </label>
