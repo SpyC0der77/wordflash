@@ -284,7 +284,7 @@ describe("getFocalCharacterIndex", () => {
   });
 
   it("uses grapheme clusters for emoji (not UTF-16 code units)", () => {
-    // "hello 👍" = 6 graphemes (h,e,l,l,o, space, 👍); 👍 is 1 grapheme, 2 UTF-16 units
+    // "hello 👍" = 7 graphemes (h, e, l, l, o, space, 👍); 👍 is 1 grapheme, 2 UTF-16 units
     expect(getFocalCharacterIndex("hello 👍")).toBe(2);
   });
 
