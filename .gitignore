@@ -44,3 +44,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+apps/ios/WordFlash/WordFlash.xcodeproj/project.xcworkspace/xcuserdata/carter.xcuserdatad/UserInterfaceState.xcuserstate
