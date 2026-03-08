@@ -23,6 +23,10 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXBuildFile section */
+		A1B2C3D42F5DF88B001F5A69 /* Readability in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D32F5DF88B001F5A69 /* Readability */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		AD060CE52F5DF885001F5A69 /* WordFlash.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WordFlash.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AD060CF22F5DF88B001F5A69 /* WordFlashTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WordFlashTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1B2C3D42F5DF88B001F5A69 /* Readability in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +117,7 @@
 			);
 			name = WordFlash;
 			packageProductDependencies = (
+				A1B2C3D32F5DF88B001F5A69 /* Readability */,
 			);
 			productName = WordFlash;
 			productReference = AD060CE52F5DF885001F5A69 /* WordFlash.app */;
@@ -199,6 +205,9 @@
 			productRefGroup = AD060CE62F5DF885001F5A69 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
+			packageReferences = (
+				A1B2C3D22F5DF88B001F5A69 /* XCRemoteSwiftPackageReference "swift-readability" */,
+			);
 			targets = (
 				AD060CE42F5DF885001F5A69 /* WordFlash */,
 				AD060CF12F5DF88B001F5A69 /* WordFlashTests */,
@@ -267,6 +276,25 @@
 			targetProxy = AD060CFD2F5DF88B001F5A69 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A1B2C3D22F5DF88B001F5A69 /* XCRemoteSwiftPackageReference "swift-readability" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Ryu0118/swift-readability";
+			requirement = {
+				kind = exactVersion;
+				version = 0.3.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A1B2C3D32F5DF88B001F5A69 /* Readability */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D22F5DF88B001F5A69 /* XCRemoteSwiftPackageReference "swift-readability" */;
+			productName = Readability;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		AD060D042F5DF88B001F5A69 /* Debug */ = {

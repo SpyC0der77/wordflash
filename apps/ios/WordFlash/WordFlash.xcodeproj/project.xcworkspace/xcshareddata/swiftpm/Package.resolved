@@ -1,0 +1,15 @@
+{
+  "originHash" : "347a59ed9f061b9cce65745e8ff820b69d7b5d9dff9cc663e4ffa8da60408542",
+  "pins" : [
+    {
+      "identity" : "swift-readability",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Ryu0118/swift-readability",
+      "state" : {
+        "revision" : "961453ade5b0fecdc5f3b0d562071cfc4b0603ea",
+        "version" : "0.3.0"
+      }
+    }
+  ],
+  "version" : 3
+}

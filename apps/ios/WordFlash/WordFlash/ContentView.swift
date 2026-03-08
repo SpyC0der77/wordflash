@@ -8,17 +8,37 @@
 import SwiftUI
 
 struct ContentView: View {
-    var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
-    }
-}
+    @EnvironmentObject private var settings: ReaderSettingsStore
+    @State private var selectedTab = 0
 
-#Preview {
-    ContentView()
+    var body: some View {
+        GeometryReader { geometry in
+            let isPhoneLandscape = UIDevice.current.userInterfaceIdiom == .phone && geometry.size.width > geometry.size.height
+
+            Group {
+                if isPhoneLandscape {
+                    if selectedTab == 0 {
+                        TextReaderScreen()
+                    } else {
+                        ArticleReaderScreen()
+                    }
+                } else {
+                    TabView(selection: $selectedTab) {
+                        TextReaderScreen()
+                            .tabItem {
+                                Label("Text", systemImage: "text.alignleft")
+                            }
+                            .tag(0)
+
+                        ArticleReaderScreen()
+                            .tabItem {
+                                Label("Article", systemImage: "doc.text.magnifyingglass")
+                            }
+                            .tag(1)
+                    }
+                }
+            }
+        }
+        .tint(settings.focalColor.color)
+    }
 }
