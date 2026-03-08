@@ -1,51 +1,23 @@
 {
-  "name": "speedreader",
+  "name": "speedreader-monorepo",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint",
-    "test": "vitest run",
-    "test:watch": "vitest"
-  },
-  "dependencies": {
-    "@mozilla/readability": "^0.6.0",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "dompurify": "^3.2.3",
-    "framer-motion": "^12.34.3",
-    "linkedom": "^0.18.12",
-    "lucide-react": "^0.575.0",
-    "next": "16.1.6",
-    "next-themes": "^0.4.6",
-    "radix-ui": "^1.4.3",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "shadcn": "^3.8.5",
-    "sonner": "^2.0.7",
-    "tailwind-merge": "^3.5.0",
-    "vaul": "^1.1.2"
+    "dev": "bun run --filter speedreader dev",
+    "dev:web": "bun run --filter speedreader dev",
+    "dev:mobile": "bun run --filter speedreader-mobile dev",
+    "build": "bun run build --filter @speedreader/core && bun run build --filter speedreader",
+    "build:web": "bun run build --filter @speedreader/core && bun run build --filter speedreader",
+    "build:mobile": "bun run build --filter speedreader-mobile",
+    "lint": "bun run --filter '*' lint",
+    "test": "bun run --filter '*' test",
+    "prepare": "bun run build --filter @speedreader/core"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.1.6",
-    "tailwindcss": "^4",
-    "tw-animate-css": "^1.4.0",
-    "typescript": "^5",
-    "vitest": "^3.2.4"
-  },
-  "ignoreScripts": [
-    "sharp",
-    "unrs-resolver"
-  ],
-  "trustedDependencies": [
-    "sharp",
-    "unrs-resolver"
-  ]
+    "typescript": "^5"
+  }
 }

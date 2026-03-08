@@ -31,9 +31,8 @@ export function calculateReadingTimeMs(
   const end = Math.max(0, Math.min(rawEnd, maxIndex));
   const start = Math.max(0, Math.min(intFromIndex, end));
 
-  const safeWpm = Number.isFinite(wordsPerMinute) && wordsPerMinute > 0
-    ? wordsPerMinute
-    : 1;
+  const safeWpm =
+    Number.isFinite(wordsPerMinute) && wordsPerMinute > 0 ? wordsPerMinute : 1;
   const baseMsPerWord = Math.max(30, Math.round(60000 / safeWpm));
   const wpmScale = 250 / safeWpm;
   const sentenceDelay = Math.round(sentenceEndDurationMsAt250Wpm * wpmScale);
@@ -42,12 +41,11 @@ export function calculateReadingTimeMs(
   let total = 0;
   for (let i = start; i <= end; i++) {
     const word = words[i] ?? "";
-    const extra =
-      wordEndsSentence(word)
-        ? sentenceDelay
-        : wordHasPausePunctuation(word)
-          ? pauseDelay
-          : 0;
+    const extra = wordEndsSentence(word)
+      ? sentenceDelay
+      : wordHasPausePunctuation(word)
+        ? pauseDelay
+        : 0;
     total += baseMsPerWord + extra;
   }
   return total;
