@@ -50,3 +50,5 @@ bun start
 ## Deploy on Vercel
 
 The easiest way to deploy is with the [Vercel Platform](https://vercel.com/new). See the [Next.js deployment docs](https://nextjs.org/docs/app/building-your-application/deploying) for details.
+
+**Monorepo setup:** In your Vercel project settings, set **Root Directory** to `apps/web` so Vercel builds and deploys the Next.js app from the correct location.
