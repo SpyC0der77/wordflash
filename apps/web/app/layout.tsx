@@ -15,7 +15,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Speed Reader",
+  title: "WordFlash",
   description: "Center-focused speed reader with focal character highlighting.",
 };
 

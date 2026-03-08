@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
-const STORAGE_KEY = "speedreader-reduce-transparency";
+const STORAGE_KEY = "wordflash-reduce-transparency";
 
 interface ReduceTransparencyContextValue {
   reduceTransparency: boolean;

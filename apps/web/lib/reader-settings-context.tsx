@@ -11,9 +11,9 @@ import type {
   FocalColorKey,
   FontFamilyKey,
   FontSizeKey,
-} from "@/components/speed-reader";
+} from "@/components/reader";
 
-const STORAGE_KEY = "speedreader-reader-settings";
+const STORAGE_KEY = "wordflash-reader-settings";
 
 const DEFAULT_SENTENCE_END_MS = 500;
 const DEFAULT_SPEECH_BREAK_MS = 250;

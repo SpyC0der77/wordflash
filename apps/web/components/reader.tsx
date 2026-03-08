@@ -42,7 +42,7 @@ import {
   parseWords,
   wordEndsSentence,
   wordHasPausePunctuation,
-} from "@/lib/speed-reader";
+} from "@/lib/reader";
 import { cn } from "@/lib/utils";
 
 const SAMPLE_TEXT =
@@ -53,7 +53,7 @@ const PAUSE_PUNCTUATION_DELAY_MS_AT_250_WPM = 250;
 const DEFAULT_SENTENCE_END_MS = 500;
 const DEFAULT_SPEECH_BREAK_MS = 250;
 
-interface SpeedReaderBaseProps {
+interface ReaderBaseProps {
   wordsPerMinute?: number;
   onWordIndexChange?: (index: number) => void;
   onComplete?: () => void;
@@ -63,7 +63,7 @@ interface SpeedReaderBaseProps {
   controlledWordIndex?: number;
 }
 
-interface SpeedReaderFullProps extends SpeedReaderBaseProps {
+interface ReaderFullProps extends ReaderBaseProps {
   variant: "full";
 }
 
@@ -107,7 +107,7 @@ export type FontSizeKey = keyof typeof FONT_SIZES;
 export type FontFamilyKey = keyof typeof FONT_FAMILIES;
 export type FocalColorKey = keyof typeof FOCAL_COLORS;
 
-interface SpeedReaderSettingsContentProps {
+interface ReaderSettingsContentProps {
   idPrefix: string;
   theme: Theme;
   setTheme: (v: Theme) => void;
@@ -127,7 +127,7 @@ interface SpeedReaderSettingsContentProps {
   setReduceMotion: (v: boolean) => void;
 }
 
-export function SpeedReaderSettingsContent({
+export function ReaderSettingsContent({
   idPrefix,
   theme,
   setTheme,
@@ -145,7 +145,7 @@ export function SpeedReaderSettingsContent({
   setReduceTransparency,
   reduceMotion,
   setReduceMotion,
-}: SpeedReaderSettingsContentProps) {
+}: ReaderSettingsContentProps) {
   return (
     <div className="space-y-4">
       <div>
@@ -288,26 +288,26 @@ export function SpeedReaderSettingsContent({
       </div>
       <div className="flex items-center justify-between gap-4">
         <label
-          htmlFor={`${idPrefix}reduce-transparency-speedreader`}
+          htmlFor={`${idPrefix}reduce-transparency-reader`}
           className="text-sm font-medium text-foreground"
         >
           Reduce transparency
         </label>
         <Switch
-          id={`${idPrefix}reduce-transparency-speedreader`}
+          id={`${idPrefix}reduce-transparency-reader`}
           checked={reduceTransparency}
           onCheckedChange={setReduceTransparency}
         />
       </div>
       <div className="flex items-center justify-between gap-4">
         <label
-          htmlFor={`${idPrefix}reduce-motion-speedreader`}
+          htmlFor={`${idPrefix}reduce-motion-reader`}
           className="text-sm font-medium text-foreground"
         >
           Reduce motion
         </label>
         <Switch
-          id={`${idPrefix}reduce-motion-speedreader`}
+          id={`${idPrefix}reduce-motion-reader`}
           checked={reduceMotion}
           onCheckedChange={setReduceMotion}
         />
@@ -330,7 +330,7 @@ export function SpeedReaderSettingsContent({
   );
 }
 
-interface SpeedReaderPanelProps extends SpeedReaderBaseProps {
+interface ReaderPanelProps extends ReaderBaseProps {
   variant: "panel";
   text: string;
   className?: string;
@@ -341,19 +341,19 @@ interface SpeedReaderPanelProps extends SpeedReaderBaseProps {
   focalColor?: FocalColorKey;
 }
 
-interface SpeedReaderTestProps extends SpeedReaderBaseProps {
+interface ReaderTestProps extends ReaderBaseProps {
   variant: "test";
   text: string;
   className?: string;
 }
 
-type SpeedReaderProps =
-  | SpeedReaderFullProps
-  | SpeedReaderPanelProps
-  | SpeedReaderTestProps;
+type ReaderProps =
+  | ReaderFullProps
+  | ReaderPanelProps
+  | ReaderTestProps;
 
-export function SpeedReader(
-  props: SpeedReaderProps,
+export function Reader(
+  props: ReaderProps,
 ): React.ReactElement | null {
   const { reduceMotion, setReduceMotion } = useReduceMotion();
   const { reduceTransparency, setReduceTransparency } = useReduceTransparency();
@@ -366,7 +366,7 @@ export function SpeedReader(
   const [inputText, setInputText] = useState(
     isFull
       ? SAMPLE_TEXT
-      : (props as SpeedReaderPanelProps | SpeedReaderTestProps).text,
+      : (props as ReaderPanelProps | ReaderTestProps).text,
   );
   const [wordIndex, setWordIndex] = useState(() => controlledWordIndex ?? 0);
   const wordsPerMinute = props.wordsPerMinute ?? readerSettings.wordsPerMinute;
@@ -379,20 +379,20 @@ export function SpeedReader(
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const fontSize = isFull
     ? readerSettings.fontSize
-    : ((props as SpeedReaderPanelProps).fontSize ?? "md");
+    : ((props as ReaderPanelProps).fontSize ?? "md");
   const fontFamily = isFull
     ? readerSettings.fontFamily
-    : ((props as SpeedReaderPanelProps).fontFamily ?? "serif");
+    : ((props as ReaderPanelProps).fontFamily ?? "serif");
   const focalColor = isFull
     ? readerSettings.focalColor
-    : ((props as SpeedReaderPanelProps).focalColor ?? "rose");
+    : ((props as ReaderPanelProps).focalColor ?? "rose");
   const sentenceEndDurationMs = isFull
     ? readerSettings.sentenceEndDurationMs
-    : ((props as SpeedReaderPanelProps).sentenceEndDurationMsAt250Wpm ??
+    : ((props as ReaderPanelProps).sentenceEndDurationMsAt250Wpm ??
       DEFAULT_SENTENCE_END_MS);
   const speechBreakDurationMs = isFull
     ? readerSettings.speechBreakDurationMs
-    : ((props as SpeedReaderPanelProps).speechBreakDurationMsAt250Wpm ??
+    : ((props as ReaderPanelProps).speechBreakDurationMsAt250Wpm ??
       DEFAULT_SPEECH_BREAK_MS);
   const setFontSize = readerSettings.setFontSize;
   const setFontFamily = readerSettings.setFontFamily;
@@ -411,7 +411,7 @@ export function SpeedReader(
 
   const text = isFull
     ? inputText
-    : (props as SpeedReaderPanelProps | SpeedReaderTestProps).text;
+    : (props as ReaderPanelProps | ReaderTestProps).text;
   const words = useMemo(() => parseWords(text), [text]);
   const onWordIndexChange =
     "onWordIndexChange" in props ? props.onWordIndexChange : undefined;
@@ -623,17 +623,17 @@ export function SpeedReader(
   if (!isFull && words.length === 0) return null;
 
   const isPanelFillHeight =
-    props.variant === "panel" && (props as SpeedReaderPanelProps).fillHeight;
+    props.variant === "panel" && (props as ReaderPanelProps).fillHeight;
 
   const effectiveFontSize = isFull
     ? fontSize
-    : ((props as SpeedReaderPanelProps).fontSize ?? "md");
+    : ((props as ReaderPanelProps).fontSize ?? "md");
   const effectiveFontFamily = isFull
     ? fontFamily
-    : ((props as SpeedReaderPanelProps).fontFamily ?? "serif");
+    : ((props as ReaderPanelProps).fontFamily ?? "serif");
   const effectiveFocalColor = isFull
     ? focalColor
-    : ((props as SpeedReaderPanelProps).focalColor ?? "rose");
+    : ((props as ReaderPanelProps).focalColor ?? "rose");
 
   const wordDisplayClassName = cn(
     FONT_SIZES[effectiveFontSize].className,
@@ -825,7 +825,7 @@ export function SpeedReader(
                   Adjust pause durations (values at 250 WPM; scale with speed).
                 </Dialog.Description>
                 <div className="min-h-0 flex-1 overflow-y-auto">
-                  <SpeedReaderSettingsContent
+                  <ReaderSettingsContent
                     idPrefix=""
                     theme={theme}
                     setTheme={setTheme}
@@ -873,7 +873,7 @@ export function SpeedReader(
                 </DrawerDescription>
               </DrawerHeader>
               <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
-                <SpeedReaderSettingsContent
+                <ReaderSettingsContent
                   idPrefix="drawer-"
                   theme={theme}
                   setTheme={setTheme}

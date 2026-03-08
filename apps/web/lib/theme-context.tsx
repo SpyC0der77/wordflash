@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore } from "react";
 
-const STORAGE_KEY = "speedreader-theme";
+const STORAGE_KEY = "wordflash-theme";
 const VALID_THEMES = ["light", "black", "gray", "system"] as const;
 const DEFAULT_THEME: Theme = "black";
 

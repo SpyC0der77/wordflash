@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (compatible; SpeedReader/1.0; +https://github.com)",
+          "Mozilla/5.0 (compatible; WordFlash/1.0; +https://github.com)",
       },
     });
 

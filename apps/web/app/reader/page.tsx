@@ -25,7 +25,7 @@ import {
   Settings,
 } from "lucide-react";
 import { Dialog } from "radix-ui";
-import { SpeedReader } from "@/components/speed-reader";
+import { Reader } from "@/components/reader";
 import {
   Drawer,
   DrawerContent,
@@ -55,7 +55,7 @@ import {
   extractTextFromHtml,
   parseWords,
   wrapWordsInHtml,
-} from "@/lib/speed-reader";
+} from "@/lib/reader";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -126,12 +126,12 @@ const ArticleBody = forwardRef<HTMLDivElement, ArticleBodyProps>(
       const prevSpan = prevHighlightRef.current;
       const prevRect = prevSpan?.getBoundingClientRect();
       if (prevSpan) {
-        prevSpan.classList.remove("speed-reader-highlight");
+        prevSpan.classList.remove("reader-highlight");
         prevHighlightRef.current = null;
       }
 
       if (span) {
-        span.classList.add("speed-reader-highlight");
+        span.classList.add("reader-highlight");
         prevHighlightRef.current = span;
         const rect = span.getBoundingClientRect();
         const lineHeight = rect.height;
@@ -180,8 +180,8 @@ interface ArticleData {
   siteName: string | null;
 }
 
-const READING_POSITION_KEY = "speedreader-reading-position";
-const PREVIOUS_ARTICLES_KEY = "speedreader-previous-articles";
+const READING_POSITION_KEY = "wordflash-reading-position";
+const PREVIOUS_ARTICLES_KEY = "wordflash-previous-articles";
 const PREVIOUS_ARTICLES_MAX = 15;
 
 interface PreviousArticle {
@@ -275,7 +275,7 @@ export default function ReaderPage() {
     [article?.content],
   );
 
-  // Use same word-boundary logic as wrapWordsInHtml so Reader View highlight matches SpeedReader.
+  // Use same word-boundary logic as wrapWordsInHtml so Reader View highlight matches Reader.
   const articleText = useMemo(
     () => (processedContent ? extractTextFromHtml(processedContent) : ""),
     [processedContent],
@@ -627,7 +627,7 @@ export default function ReaderPage() {
                 </Dialog.Title>
                 <Dialog.Description className="mb-4 text-sm text-muted-foreground">
                   Drag this link to your bookmarks bar. On any article page,
-                  click it to open in SpeedReader.
+                  click it to open in WordFlash.
                 </Dialog.Description>
                 <a
                   ref={setBookmarkletRef}
@@ -637,7 +637,7 @@ export default function ReaderPage() {
                   title="Drag to your bookmarks bar"
                 >
                   <Bookmark className="size-4 shrink-0" />
-                  Read in SpeedReader
+                  Read in WordFlash
                 </a>
               </Dialog.Content>
             </Dialog.Portal>
@@ -834,7 +834,7 @@ export default function ReaderPage() {
 
               {articleText && isCompactView && !showArticleOnMobile && (
                 <div className="flex min-h-0 flex-1 flex-col print:hidden">
-                  <SpeedReader
+                  <Reader
                     key={article.content}
                     variant="panel"
                     text={articleText}
@@ -869,7 +869,7 @@ export default function ReaderPage() {
           ref={panelRef}
           className="fixed bottom-0 left-0 right-0 z-20 print:hidden"
         >
-          <SpeedReader
+          <Reader
             key={article.content}
             variant="panel"
             text={articleText}

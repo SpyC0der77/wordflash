@@ -204,7 +204,7 @@ body {
   height: auto;
 }
 
-.reader-article [data-word-index].speed-reader-highlight {
+.reader-article [data-word-index].reader-highlight {
   background: oklch(0.488 0.243 264.376 / 50%);
   border-radius: 2px;
   box-shadow: 0 0 0 1px oklch(0.488 0.243 264.376 / 60%);
@@ -234,7 +234,7 @@ body {
     line-height: 1.6;
   }
 
-  .reader-article [data-word-index].speed-reader-highlight {
+  .reader-article [data-word-index].reader-highlight {
     background: transparent !important;
     box-shadow: none !important;
   }
