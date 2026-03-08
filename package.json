@@ -9,10 +9,8 @@
   "scripts": {
     "dev": "bun run --filter wordflash dev",
     "dev:web": "bun run --filter wordflash dev",
-    "dev:mobile": "bun run --filter speedreader-mobile dev",
     "build": "bun run --filter @wordflash/core build && bun run --filter wordflash build",
     "build:web": "bun run --filter @wordflash/core build && bun run --filter wordflash build",
-    "build:mobile": "bun run --filter speedreader-mobile build",
     "lint": "bun run --filter '*' lint",
     "test": "bun run --filter '*' test",
     "prepare": "bun run --filter @wordflash/core build"
