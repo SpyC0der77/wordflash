@@ -2,7 +2,8 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
-const STORAGE_KEY = "speedreader-reduce-motion";
+const STORAGE_KEY = "wordflash-reduce-motion";
+const LEGACY_STORAGE_KEY = "speedreader-reduce-motion";
 
 interface ReduceMotionContextValue {
   reduceMotion: boolean;
@@ -18,7 +19,14 @@ export function ReduceMotionProvider({ children }: { children: React.ReactNode }
     if (typeof window === "undefined") return;
     const id = setTimeout(() => {
       try {
-        const stored = localStorage.getItem(STORAGE_KEY);
+        let stored = localStorage.getItem(STORAGE_KEY);
+        if (stored === null) {
+          stored = localStorage.getItem(LEGACY_STORAGE_KEY);
+          if (stored !== null) {
+            localStorage.setItem(STORAGE_KEY, stored);
+            localStorage.removeItem(LEGACY_STORAGE_KEY);
+          }
+        }
         setReduceMotionState(stored === "true");
       } catch {
         // Ignore localStorage errors

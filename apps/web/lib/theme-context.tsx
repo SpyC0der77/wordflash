@@ -2,7 +2,8 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore } from "react";
 
-const STORAGE_KEY = "speedreader-theme";
+const STORAGE_KEY = "wordflash-theme";
+const LEGACY_STORAGE_KEY = "speedreader-theme";
 const VALID_THEMES = ["light", "black", "gray", "system"] as const;
 const DEFAULT_THEME: Theme = "black";
 
@@ -76,7 +77,7 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
  * attribute, preventing FOUC and hydration mismatches.
  */
 export function ThemeScript() {
-  const scriptContent = `(function(){try{var t=localStorage.getItem("${STORAGE_KEY}");if(t==="light"){document.documentElement.setAttribute("data-theme","light");document.documentElement.classList.remove("dark")}else if(t==="gray"||t==="black"){document.documentElement.setAttribute("data-theme",t);document.documentElement.classList.add("dark")}else if(t==="system"){document.documentElement.setAttribute("data-theme","system");var d=window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.toggle("dark",d)}else{document.documentElement.setAttribute("data-theme","${DEFAULT_THEME}");document.documentElement.classList.add("dark")}}catch(e){document.documentElement.setAttribute("data-theme","${DEFAULT_THEME}");document.documentElement.classList.add("dark")}})()`;
+  const scriptContent = `(function(){try{var t=localStorage.getItem("${STORAGE_KEY}");if(!t){var l=localStorage.getItem("${LEGACY_STORAGE_KEY}");if(l&&["light","gray","black","system"].indexOf(l)!==-1){t=l;localStorage.setItem("${STORAGE_KEY}",t);localStorage.removeItem("${LEGACY_STORAGE_KEY}")}}if(t==="light"){document.documentElement.setAttribute("data-theme","light");document.documentElement.classList.remove("dark")}else if(t==="gray"||t==="black"){document.documentElement.setAttribute("data-theme",t);document.documentElement.classList.add("dark")}else if(t==="system"){document.documentElement.setAttribute("data-theme","system");var d=window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.classList.toggle("dark",d)}else{document.documentElement.setAttribute("data-theme","${DEFAULT_THEME}");document.documentElement.classList.add("dark")}}catch(e){document.documentElement.setAttribute("data-theme","${DEFAULT_THEME}");document.documentElement.classList.add("dark")}})()`;
 
   return (
     <script

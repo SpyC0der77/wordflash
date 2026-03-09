@@ -1,5 +1,5 @@
-import { SpeedReader } from "@/components/speed-reader";
+import { Reader } from "@/components/reader";
 
 export default function Home() {
-  return <SpeedReader variant="full" />;
+  return <Reader variant="full" />;
 }

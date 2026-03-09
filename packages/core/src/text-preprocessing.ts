@@ -42,7 +42,7 @@ export function attachTrailingCommasToLinks(html: string): string {
 
 /**
  * Extracts plain text from HTML using the SAME word-boundary logic as
- * wrapWordsInHtml. Must be used for SpeedReader text so indices match the
+ * wrapWordsInHtml. Must be used for WordFlash text so indices match the
  * Reader View highlight. Client-only (DOMParser); returns "" during SSR.
  */
 export function extractTextFromHtml(html: string): string {

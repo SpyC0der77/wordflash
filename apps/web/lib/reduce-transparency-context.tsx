@@ -2,7 +2,8 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
-const STORAGE_KEY = "speedreader-reduce-transparency";
+const STORAGE_KEY = "wordflash-reduce-transparency";
+const LEGACY_STORAGE_KEY = "speedreader-reduce-transparency";
 
 interface ReduceTransparencyContextValue {
   reduceTransparency: boolean;
@@ -18,7 +19,14 @@ export function ReduceTransparencyProvider({ children }: { children: React.React
     if (typeof window === "undefined") return;
     const id = setTimeout(() => {
       try {
-        const stored = localStorage.getItem(STORAGE_KEY);
+        let stored = localStorage.getItem(STORAGE_KEY);
+        if (stored === null) {
+          stored = localStorage.getItem(LEGACY_STORAGE_KEY);
+          if (stored !== null) {
+            localStorage.setItem(STORAGE_KEY, stored);
+            localStorage.removeItem(LEGACY_STORAGE_KEY);
+          }
+        }
         setReduceTransparencyState(stored === "true");
       } catch {
         // Ignore localStorage errors

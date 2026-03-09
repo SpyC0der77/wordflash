@@ -11,9 +11,10 @@ import type {
   FocalColorKey,
   FontFamilyKey,
   FontSizeKey,
-} from "@/components/speed-reader";
+} from "@/components/reader";
 
-const STORAGE_KEY = "speedreader-reader-settings";
+const STORAGE_KEY = "wordflash-reader-settings";
+const LEGACY_STORAGE_KEY = "speedreader-reader-settings";
 
 const DEFAULT_SENTENCE_END_MS = 500;
 const DEFAULT_SPEECH_BREAK_MS = 250;
@@ -42,10 +43,12 @@ const DEFAULTS: StoredSettings = {
 function loadStored(): StoredSettings {
   if (typeof window === "undefined") return DEFAULTS;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    let raw = localStorage.getItem(STORAGE_KEY);
+    const fromLegacy = !raw && !!localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!raw) raw = localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return DEFAULTS;
     const parsed = JSON.parse(raw) as Partial<StoredSettings>;
-    return {
+    const result = {
       fontSize:
         parsed.fontSize && ["sm", "md", "lg", "xl"].includes(parsed.fontSize)
           ? parsed.fontSize
@@ -78,6 +81,15 @@ function loadStored(): StoredSettings {
           ? parsed.wordsPerMinute
           : DEFAULTS.wordsPerMinute,
     };
+    if (fromLegacy) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(result));
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+      } catch {
+        // Ignore - keep legacy key if write fails; saveStored swallows errors
+      }
+    }
+    return result;
   } catch {
     return DEFAULTS;
   }

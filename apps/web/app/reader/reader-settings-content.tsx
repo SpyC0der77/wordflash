@@ -18,7 +18,7 @@ import {
   type FocalColorKey,
   type FontFamilyKey,
   type FontSizeKey,
-} from "@/components/speed-reader";
+} from "@/components/reader";
 import { cn } from "@/lib/utils";
 
 interface ReaderSettingsContentProps {

@@ -1,5 +1,5 @@
 {
-  "name": "speedreader",
+  "name": "wordflash",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
-    "@speedreader/core": "workspace:*",
+    "@wordflash/core": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dompurify": "^3.2.3",

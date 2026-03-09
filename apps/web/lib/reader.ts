@@ -8,4 +8,4 @@ export {
   wordEndsSentence,
   wordHasPausePunctuation,
   wrapWordsInHtml,
-} from "@speedreader/core";
+} from "@wordflash/core";
