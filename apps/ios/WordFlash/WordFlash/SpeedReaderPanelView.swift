@@ -137,6 +137,7 @@ struct SpeedReaderPanelView: View {
             VStack(spacing: isCompactHeight ? 8 : 10) {
                 ControlGroup {
                     Button {
+                        guard !playback.words.isEmpty else { return }
                         playback.setWordIndex(max(0, playback.wordIndex - 1), pausePlayback: true)
                     } label: {
                         Image(systemName: "backward.frame.fill")
@@ -145,6 +146,7 @@ struct SpeedReaderPanelView: View {
                     .disabled(playback.words.isEmpty)
 
                     Button {
+                        guard !playback.words.isEmpty else { return }
                         playback.playPauseRestart()
                     } label: {
                         Image(systemName: playback.isPlaying ? "pause.fill" : (playback.isFinished ? "arrow.counterclockwise" : "play.fill"))
@@ -153,6 +155,7 @@ struct SpeedReaderPanelView: View {
                     .disabled(playback.words.isEmpty)
 
                     Button {
+                        guard !playback.words.isEmpty else { return }
                         playback.setWordIndex(min(max(0, playback.words.count - 1), playback.wordIndex + 1), pausePlayback: true)
                     } label: {
                         Image(systemName: "forward.frame.fill")
@@ -191,15 +194,18 @@ struct SpeedReaderPanelView: View {
         .background {
             Group {
                 Button("Restart") {
+                    guard !playback.words.isEmpty else { return }
                     playback.setWordIndex(0, pausePlayback: true)
                     playback.playPauseRestart()
                 }
                 .keyboardShortcut("r", modifiers: [])
                 Button("Start") {
+                    guard !playback.words.isEmpty else { return }
                     playback.setWordIndex(0, pausePlayback: true)
                 }
                 .keyboardShortcut(.home, modifiers: [])
                 Button("End") {
+                    guard !playback.words.isEmpty else { return }
                     playback.setWordIndex(max(0, playback.words.count - 1), pausePlayback: true)
                 }
                 .keyboardShortcut(.end, modifiers: [])
