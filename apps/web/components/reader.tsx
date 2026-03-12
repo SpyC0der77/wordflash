@@ -5,6 +5,7 @@ import Link from "next/link";
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -175,7 +176,10 @@ export function ReaderSettingsContent({
         >
           Font size
         </label>
-        <Select value={fontSize} onValueChange={(v) => setFontSize(v as FontSizeKey)}>
+        <Select
+          value={fontSize}
+          onValueChange={(v) => setFontSize(v as FontSizeKey)}
+        >
           <SelectTrigger id={`${idPrefix}font-size-select`}>
             <SelectValue />
           </SelectTrigger>
@@ -347,14 +351,9 @@ interface ReaderTestProps extends ReaderBaseProps {
   className?: string;
 }
 
-type ReaderProps =
-  | ReaderFullProps
-  | ReaderPanelProps
-  | ReaderTestProps;
+type ReaderProps = ReaderFullProps | ReaderPanelProps | ReaderTestProps;
 
-export function Reader(
-  props: ReaderProps,
-): React.ReactElement | null {
+export function Reader(props: ReaderProps): React.ReactElement | null {
   const { reduceMotion, setReduceMotion } = useReduceMotion();
   const { reduceTransparency, setReduceTransparency } = useReduceTransparency();
   const { theme, setTheme } = useTheme();
@@ -364,9 +363,7 @@ export function Reader(
   const controlledWordIndex = props.controlledWordIndex;
 
   const [inputText, setInputText] = useState(
-    isFull
-      ? SAMPLE_TEXT
-      : (props as ReaderPanelProps | ReaderTestProps).text,
+    isFull ? SAMPLE_TEXT : (props as ReaderPanelProps | ReaderTestProps).text,
   );
   const [wordIndex, setWordIndex] = useState(() => controlledWordIndex ?? 0);
   const wordsPerMinute = props.wordsPerMinute ?? readerSettings.wordsPerMinute;
@@ -379,6 +376,10 @@ export function Reader(
   const [inputTab, setInputTab] = useState<"edit" | "scrub">("edit");
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const scrubContainerRef = useRef<HTMLDivElement>(null);
+  const editTabRef = useRef<HTMLButtonElement>(null);
+  const scrubTabRef = useRef<HTMLButtonElement>(null);
+  const tabListRef = useRef<HTMLDivElement>(null);
+  const [pillStyle, setPillStyle] = useState<{ left: number; width: number } | null>(null);
   const fontSize = isFull
     ? readerSettings.fontSize
     : ((props as ReaderPanelProps).fontSize ?? "md");
@@ -451,6 +452,21 @@ export function Reader(
       onWordIndexChange?.(effectiveWordIndex);
     }
   }, [effectiveWordIndex, onWordIndexChange]);
+
+  // Measure and update pill position for tab switcher
+  useLayoutEffect(() => {
+    if (!isFull) return;
+    const activeRef = inputTab === "edit" ? editTabRef : scrubTabRef;
+    const tab = activeRef.current;
+    const list = tabListRef.current;
+    if (!tab || !list) return;
+    const tabRect = tab.getBoundingClientRect();
+    const listRect = list.getBoundingClientRect();
+    setPillStyle({
+      left: tabRect.left - listRect.left,
+      width: tabRect.width,
+    });
+  }, [isFull, inputTab]);
 
   // Scroll scrub view to keep highlighted word visible
   useEffect(() => {
@@ -870,8 +886,8 @@ export function Reader(
                   />
                 </div>
               </Dialog.Content>
-          </Dialog.Portal>
-        </Dialog.Root>
+            </Dialog.Portal>
+          </Dialog.Root>
         ) : (
           <Drawer open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
             <DrawerTrigger asChild>
@@ -886,9 +902,7 @@ export function Reader(
             </DrawerTrigger>
             <DrawerContent
               className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden"
-              overlayClassName={
-                reduceTransparency ? "bg-black" : undefined
-              }
+              overlayClassName={reduceTransparency ? "bg-black" : undefined}
             >
               <DrawerHeader className="shrink-0 text-left">
                 <DrawerTitle>Settings</DrawerTitle>
@@ -938,11 +952,30 @@ export function Reader(
             Text to read{words.length > 0 && ` (${words.length} words)`}
           </label>
           <div
+            ref={tabListRef}
             role="tablist"
             aria-label="Input mode"
-            className="flex rounded-lg border border-border bg-muted/50 p-0.5"
+            className="relative flex rounded-lg border border-border bg-muted/50 p-0.5"
           >
+            {pillStyle && (
+              <div
+                className={cn(
+                  "absolute inset-y-0 rounded-md bg-background shadow-sm",
+                  reduceMotion
+                    ? "transition-none"
+                    : "transition-[left,width] duration-200 ease-out",
+                )}
+                style={{
+                  left: pillStyle.left,
+                  width: pillStyle.width,
+                  top: 2,
+                  bottom: 2,
+                }}
+                aria-hidden
+              />
+            )}
             <button
+              ref={editTabRef}
               type="button"
               role="tab"
               aria-selected={inputTab === "edit"}
@@ -950,15 +983,16 @@ export function Reader(
               id="reader-edit-tab"
               onClick={() => setInputTab("edit")}
               className={cn(
-                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                "relative z-10 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                 inputTab === "edit"
-                  ? "bg-background text-foreground shadow-sm"
+                  ? "text-foreground"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
               Edit
             </button>
             <button
+              ref={scrubTabRef}
               type="button"
               role="tab"
               aria-selected={inputTab === "scrub"}
@@ -966,9 +1000,9 @@ export function Reader(
               id="reader-scrub-tab"
               onClick={() => setInputTab("scrub")}
               className={cn(
-                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                "relative z-10 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                 inputTab === "scrub"
-                  ? "bg-background text-foreground shadow-sm"
+                  ? "text-foreground"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
