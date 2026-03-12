@@ -181,26 +181,71 @@ interface ArticleData {
   siteName: string | null;
 }
 
-const READING_POSITION_KEY = "wordflash-reading-position";
+const READING_POSITIONS_KEY = "wordflash-reading-positions";
 const PREVIOUS_ARTICLES_KEY = "wordflash-previous-articles";
 const LEGACY_READING_POSITION_KEY = "speedreader-reading-position";
+const LEGACY_READING_POSITIONS_KEY = "speedreader-reading-positions";
 const LEGACY_PREVIOUS_ARTICLES_KEY = "speedreader-previous-articles";
 const PREVIOUS_ARTICLES_MAX = 15;
 
-function getReadingPositionRaw(): string | null {
-  if (typeof window === "undefined") return null;
-  const raw =
-    localStorage.getItem(READING_POSITION_KEY) ??
-    localStorage.getItem(LEGACY_READING_POSITION_KEY);
-  if (raw && localStorage.getItem(READING_POSITION_KEY) === null) {
-    try {
-      localStorage.setItem(READING_POSITION_KEY, raw);
-      localStorage.removeItem(LEGACY_READING_POSITION_KEY);
-    } catch {
-      // Ignore migration errors
+function loadReadingPositions(): Record<string, number> {
+  if (typeof window === "undefined") return {};
+  try {
+    // New format: { [url]: wordIndex }
+    const raw = localStorage.getItem(READING_POSITIONS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, number>;
+      if (parsed && typeof parsed === "object") return parsed;
     }
+    // Migrate from legacy single-position format
+    const legacyRaw =
+      localStorage.getItem(LEGACY_READING_POSITION_KEY) ??
+      localStorage.getItem("wordflash-reading-position");
+    if (legacyRaw) {
+      const legacy = JSON.parse(legacyRaw) as {
+        url?: string;
+        wordIndex?: number;
+      };
+      if (legacy?.url != null && typeof legacy.wordIndex === "number") {
+        const positions: Record<string, number> = {
+          [legacy.url]: Math.max(0, legacy.wordIndex),
+        };
+        localStorage.setItem(READING_POSITIONS_KEY, JSON.stringify(positions));
+        localStorage.removeItem(LEGACY_READING_POSITION_KEY);
+        localStorage.removeItem("wordflash-reading-position");
+        return positions;
+      }
+    }
+    // Migrate from iOS-style legacy key
+    const iosRaw = localStorage.getItem(LEGACY_READING_POSITIONS_KEY);
+    if (iosRaw) {
+      const parsed = JSON.parse(iosRaw) as Record<string, number>;
+      if (parsed && typeof parsed === "object") {
+        localStorage.setItem(READING_POSITIONS_KEY, iosRaw);
+        localStorage.removeItem(LEGACY_READING_POSITIONS_KEY);
+        return parsed;
+      }
+    }
+  } catch {
+    // Ignore
   }
-  return raw;
+  return {};
+}
+
+function getReadingPositionForUrl(url: string): number | undefined {
+  const positions = loadReadingPositions();
+  return positions[url];
+}
+
+function saveReadingPosition(url: string, wordIndex: number) {
+  if (typeof window === "undefined") return;
+  try {
+    const positions = loadReadingPositions();
+    positions[url] = Math.max(0, wordIndex);
+    localStorage.setItem(READING_POSITIONS_KEY, JSON.stringify(positions));
+  } catch {
+    // Ignore
+  }
 }
 
 function getPreviousArticlesRaw(): string | null {
@@ -245,6 +290,7 @@ export default function ReaderPage() {
     setFocalColor,
     setSentenceEndDurationMs,
     setSpeechBreakDurationMs,
+    resetDefaults,
   } = readerSettings;
 
   const urlFromQuery = queryStates.url;
@@ -362,15 +408,9 @@ export default function ReaderPage() {
       return;
     }
     try {
-      const stored = getReadingPositionRaw();
-      if (stored && url) {
-        const { url: storedUrl, wordIndex: storedIndex } = JSON.parse(
-          stored,
-        ) as {
-          url?: string;
-          wordIndex?: number;
-        };
-        if (storedUrl === url && typeof storedIndex === "number") {
+      if (url) {
+        const storedIndex = getReadingPositionForUrl(url);
+        if (typeof storedIndex === "number") {
           const restoredIndex = Math.min(
             Math.max(0, storedIndex),
             wordCount - 1,
@@ -390,14 +430,7 @@ export default function ReaderPage() {
 
   useEffect(() => {
     if (!article || !url) return;
-    try {
-      localStorage.setItem(
-        READING_POSITION_KEY,
-        JSON.stringify({ url, wordIndex }),
-      );
-    } catch {
-      // Ignore
-    }
+    saveReadingPosition(url, wordIndex);
   }, [article, url, wordIndex]);
 
   function handleWordClick(index: number) {
@@ -789,6 +822,7 @@ export default function ReaderPage() {
                       reduceMotion={reduceMotion}
                       setReduceMotion={setReduceMotion}
                       showKeyboardShortcuts
+                      onResetDefaults={resetDefaults}
                     />
                   </div>
                 </Dialog.Content>
@@ -833,6 +867,7 @@ export default function ReaderPage() {
                     reduceMotion={reduceMotion}
                     setReduceMotion={setReduceMotion}
                     showKeyboardShortcuts
+                    onResetDefaults={resetDefaults}
                   />
                 </div>
               </DrawerContent>

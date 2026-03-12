@@ -126,6 +126,7 @@ interface ReaderSettingsContentProps {
   setReduceTransparency: (v: boolean) => void;
   reduceMotion: boolean;
   setReduceMotion: (v: boolean) => void;
+  onResetDefaults: () => void;
 }
 
 export function ReaderSettingsContent({
@@ -146,6 +147,7 @@ export function ReaderSettingsContent({
   setReduceTransparency,
   reduceMotion,
   setReduceMotion,
+  onResetDefaults,
 }: ReaderSettingsContentProps) {
   return (
     <div className="space-y-4">
@@ -316,6 +318,13 @@ export function ReaderSettingsContent({
           onCheckedChange={setReduceMotion}
         />
       </div>
+      <Button
+        variant="outline"
+        className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+        onClick={onResetDefaults}
+      >
+        Reset defaults
+      </Button>
       <ul className="pt-2 text-xs text-muted-foreground list-disc pl-4 space-y-1">
         <li>
           <Kbd>Space</Kbd> — play/pause
@@ -405,6 +414,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   const setFocalColor = readerSettings.setFocalColor;
   const setSentenceEndDurationMs = readerSettings.setSentenceEndDurationMs;
   const setSpeechBreakDurationMs = readerSettings.setSpeechBreakDurationMs;
+  const resetDefaults = readerSettings.resetDefaults;
   const timeoutRef = useRef<number | null>(null);
 
   const effectiveSentenceEndMs = isFull
@@ -890,6 +900,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
                     setReduceTransparency={setReduceTransparency}
                     reduceMotion={reduceMotion}
                     setReduceMotion={setReduceMotion}
+                    onResetDefaults={resetDefaults}
                   />
                 </div>
               </Dialog.Content>
@@ -936,6 +947,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
                   setReduceTransparency={setReduceTransparency}
                   reduceMotion={reduceMotion}
                   setReduceMotion={setReduceMotion}
+                  onResetDefaults={resetDefaults}
                 />
               </div>
             </DrawerContent>

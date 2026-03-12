@@ -137,6 +137,7 @@ interface ReaderSettingsContextValue extends StoredSettings {
   setSentenceEndDurationMs: (v: number) => void;
   setSpeechBreakDurationMs: (v: number) => void;
   setWordsPerMinute: (v: number) => void;
+  resetDefaults: () => void;
 }
 
 const ReaderSettingsContext = createContext<ReaderSettingsContextValue | null>(
@@ -173,6 +174,11 @@ export function ReaderSettingsProvider({ children }: { children: React.ReactNode
     updateStored((s) => ({ ...s, wordsPerMinute: clamped }));
   }, []);
 
+  const resetDefaults = useCallback(() => {
+    saveStored(DEFAULTS);
+    emitChange();
+  }, []);
+
   const value: ReaderSettingsContextValue = useMemo(
     () => ({
       ...settings,
@@ -182,8 +188,9 @@ export function ReaderSettingsProvider({ children }: { children: React.ReactNode
       setSentenceEndDurationMs,
       setSpeechBreakDurationMs,
       setWordsPerMinute,
+      resetDefaults,
     }),
-    [settings, setFontSize, setFontFamily, setFocalColor, setSentenceEndDurationMs, setSpeechBreakDurationMs, setWordsPerMinute],
+    [settings, setFontSize, setFontFamily, setFocalColor, setSentenceEndDurationMs, setSpeechBreakDurationMs, setWordsPerMinute, resetDefaults],
   );
 
   return (
@@ -204,6 +211,7 @@ export function useReaderSettings() {
       setSentenceEndDurationMs: () => {},
       setSpeechBreakDurationMs: () => {},
       setWordsPerMinute: () => {},
+      resetDefaults: () => {},
     };
   }
   return ctx;

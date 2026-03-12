@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -40,6 +41,7 @@ interface ReaderSettingsContentProps {
   reduceMotion: boolean;
   setReduceMotion: (v: boolean) => void;
   showKeyboardShortcuts?: boolean;
+  onResetDefaults?: () => void;
 }
 
 export function ReaderSettingsContent({
@@ -61,6 +63,7 @@ export function ReaderSettingsContent({
   reduceMotion,
   setReduceMotion,
   showKeyboardShortcuts = true,
+  onResetDefaults,
 }: ReaderSettingsContentProps) {
   return (
     <div className="space-y-4">
@@ -224,6 +227,17 @@ export function ReaderSettingsContent({
           onCheckedChange={setReduceMotion}
         />
       </div>
+      {onResetDefaults && (
+        <div className="pt-2">
+          <Button
+            variant="outline"
+            className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={onResetDefaults}
+          >
+            Reset defaults
+          </Button>
+        </div>
+      )}
       {showKeyboardShortcuts && (
         <ul className="pt-2 text-xs text-muted-foreground list-disc pl-4 space-y-1">
           <li>

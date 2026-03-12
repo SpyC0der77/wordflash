@@ -69,6 +69,13 @@ struct ReaderSettingsSheet: View {
                     }
                 }
 
+                Section("Keyboard Shortcuts") {
+                    LabeledContent("Play/Pause", Text("Space"))
+                    LabeledContent("Restart", Text("R"))
+                    LabeledContent("Previous/Next word", Text("← →"))
+                    LabeledContent("Jump to start/end", Text("Home / End"))
+                }
+
                 Section {
                     Button("Reset Defaults", role: .destructive) {
                         settings.resetDefaults()
