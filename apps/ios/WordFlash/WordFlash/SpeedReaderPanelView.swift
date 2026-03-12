@@ -212,6 +212,7 @@ struct SpeedReaderPanelView: View {
             }
             .opacity(0)
             .accessibilityHidden(true)
+            .allowsHitTesting(false)
         }
     }
 
