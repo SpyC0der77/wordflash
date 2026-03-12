@@ -4,8 +4,8 @@ import React, {
   createContext,
   useCallback,
   useContext,
-  useLayoutEffect,
-  useState,
+  useMemo,
+  useSyncExternalStore,
 } from "react";
 import type {
   FocalColorKey,
@@ -103,6 +103,33 @@ function saveStored(settings: StoredSettings) {
   }
 }
 
+let listeners: Array<() => void> = [];
+
+function emitChange() {
+  for (const listener of listeners) listener();
+}
+
+function subscribe(listener: () => void) {
+  listeners = [...listeners, listener];
+  return () => {
+    listeners = listeners.filter((l) => l !== listener);
+  };
+}
+
+function getSnapshot(): StoredSettings {
+  return loadStored();
+}
+
+function getServerSnapshot(): StoredSettings {
+  return DEFAULTS;
+}
+
+function updateStored(updater: (prev: StoredSettings) => StoredSettings) {
+  const next = updater(loadStored());
+  saveStored(next);
+  emitChange();
+}
+
 interface ReaderSettingsContextValue extends StoredSettings {
   setFontSize: (v: FontSizeKey) => void;
   setFontFamily: (v: FontFamilyKey) => void;
@@ -117,72 +144,47 @@ const ReaderSettingsContext = createContext<ReaderSettingsContextValue | null>(
 );
 
 export function ReaderSettingsProvider({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = useState<StoredSettings>(DEFAULTS);
-
-  useLayoutEffect(() => {
-    setSettings(loadStored());
-  }, []);
+  const settings = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   const setFontSize = useCallback((fontSize: FontSizeKey) => {
-    setSettings((s) => {
-      const next = { ...s, fontSize };
-      saveStored(next);
-      return next;
-    });
+    updateStored((s) => ({ ...s, fontSize }));
   }, []);
 
   const setFontFamily = useCallback((fontFamily: FontFamilyKey) => {
-    setSettings((s) => {
-      const next = { ...s, fontFamily };
-      saveStored(next);
-      return next;
-    });
+    updateStored((s) => ({ ...s, fontFamily }));
   }, []);
 
   const setFocalColor = useCallback((focalColor: FocalColorKey) => {
-    setSettings((s) => {
-      const next = { ...s, focalColor };
-      saveStored(next);
-      return next;
-    });
+    updateStored((s) => ({ ...s, focalColor }));
   }, []);
 
   const setSentenceEndDurationMs = useCallback((sentenceEndDurationMs: number) => {
-    setSettings((s) => {
-      const next = { ...s, sentenceEndDurationMs };
-      saveStored(next);
-      return next;
-    });
+    updateStored((s) => ({ ...s, sentenceEndDurationMs }));
   }, []);
 
   const setSpeechBreakDurationMs = useCallback((speechBreakDurationMs: number) => {
-    setSettings((s) => {
-      const next = { ...s, speechBreakDurationMs };
-      saveStored(next);
-      return next;
-    });
+    updateStored((s) => ({ ...s, speechBreakDurationMs }));
   }, []);
 
   const setWordsPerMinute = useCallback((wordsPerMinute: number) => {
-    setSettings((s) => {
-      const clamped = Math.round(
-        Math.max(WPM_MIN, Math.min(WPM_MAX, wordsPerMinute)),
-      );
-      const next = { ...s, wordsPerMinute: clamped };
-      saveStored(next);
-      return next;
-    });
+    const clamped = Math.round(
+      Math.max(WPM_MIN, Math.min(WPM_MAX, wordsPerMinute)),
+    );
+    updateStored((s) => ({ ...s, wordsPerMinute: clamped }));
   }, []);
 
-  const value: ReaderSettingsContextValue = {
-    ...settings,
-    setFontSize,
-    setFontFamily,
-    setFocalColor,
-    setSentenceEndDurationMs,
-    setSpeechBreakDurationMs,
-    setWordsPerMinute,
-  };
+  const value: ReaderSettingsContextValue = useMemo(
+    () => ({
+      ...settings,
+      setFontSize,
+      setFontFamily,
+      setFocalColor,
+      setSentenceEndDurationMs,
+      setSpeechBreakDurationMs,
+      setWordsPerMinute,
+    }),
+    [settings, setFontSize, setFontFamily, setFocalColor, setSentenceEndDurationMs, setSpeechBreakDurationMs, setWordsPerMinute],
+  );
 
   return (
     <ReaderSettingsContext.Provider value={value}>
