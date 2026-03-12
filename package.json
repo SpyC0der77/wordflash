@@ -17,5 +17,8 @@
   },
   "devDependencies": {
     "typescript": "^5"
+  },
+  "dependencies": {
+    "nuqs": "^2.8.9"
   }
 }

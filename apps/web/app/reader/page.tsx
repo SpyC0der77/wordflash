@@ -10,7 +10,8 @@ import {
   useState,
 } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useQueryStates } from "nuqs";
+import { readerSearchParams } from "@/app/reader/reader-search-params";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,7 +26,7 @@ import {
   Settings,
 } from "lucide-react";
 import { Dialog } from "radix-ui";
-import { Reader } from "@/components/reader";
+import { Reader, type FontSizeKey } from "@/components/reader";
 import {
   Drawer,
   DrawerContent,
@@ -47,7 +48,7 @@ import {
 import { useReaderSettings } from "@/lib/reader-settings-context";
 import { useReduceMotion } from "@/lib/reduce-motion-context";
 import { useReduceTransparency } from "@/lib/reduce-transparency-context";
-import { useTheme } from "@/lib/theme-context";
+import { useTheme, type Theme } from "@/lib/theme-context";
 import { ReaderSettingsContent } from "@/app/reader/reader-settings-content";
 import {
   attachTrailingCommasToLinks,
@@ -223,8 +224,11 @@ interface PreviousArticle {
   title: string;
 }
 
+const WPM_MIN = 50;
+const WPM_MAX = 1200;
+
 export default function ReaderPage() {
-  const searchParams = useSearchParams();
+  const [queryStates, setQueryStates] = useQueryStates(readerSearchParams);
   const { reduceMotion, setReduceMotion } = useReduceMotion();
   const { reduceTransparency, setReduceTransparency } = useReduceTransparency();
   const { theme, setTheme } = useTheme();
@@ -242,6 +246,35 @@ export default function ReaderPage() {
     setSentenceEndDurationMs,
     setSpeechBreakDurationMs,
   } = readerSettings;
+
+  const urlFromQuery = queryStates.url;
+  const wpmFromQuery = queryStates.wpm;
+  const themeFromQuery = queryStates.theme;
+  const fontSizeFromQuery = queryStates.fontSize;
+
+  const effectiveWpm =
+    wpmFromQuery > 0
+      ? Math.min(WPM_MAX, Math.max(WPM_MIN, wpmFromQuery))
+      : wordsPerMinute;
+  const effectiveTheme = themeFromQuery ?? theme;
+  const effectiveFontSize = fontSizeFromQuery ?? fontSize;
+
+  const handleSetTheme = useCallback(
+    (t: Theme) => {
+      setTheme(t);
+      setQueryStates((prev) => ({ ...prev, theme: t }));
+    },
+    [setTheme, setQueryStates],
+  );
+
+  const handleSetFontSize = useCallback(
+    (f: FontSizeKey) => {
+      setFontSize(f);
+      setQueryStates((prev) => ({ ...prev, fontSize: f }));
+    },
+    [setFontSize, setQueryStates],
+  );
+
   const [url, setUrl] = useState("");
   const [article, setArticle] = useState<ArticleData | null>(null);
   const [wrappedContent, setWrappedContent] = useState<string | null>(null);
@@ -470,22 +503,48 @@ export default function ReaderPage() {
     }
   }, []);
 
+  // Sync URL from query state to local input; support legacy `u` param
   useEffect(() => {
-    const paramUrl = searchParams.get("url") ?? searchParams.get("u");
-    if (paramUrl?.trim()) {
-      setUrl(paramUrl.trim());
+    const paramUrl = urlFromQuery?.trim();
+    if (paramUrl) {
+      setUrl(paramUrl);
       loadArticle(paramUrl);
     }
-  }, [searchParams, loadArticle]);
+  }, [urlFromQuery, loadArticle]);
+
+  // Migrate legacy `u` param to `url` on mount
+  useEffect(() => {
+    if (urlFromQuery) return;
+    const params = new URLSearchParams(window.location.search);
+    const u = params.get("u")?.trim();
+    if (u) {
+      setQueryStates({ url: u });
+    }
+  }, [urlFromQuery, setQueryStates]);
+
+  // Apply theme from URL when present
+  useEffect(() => {
+    if (themeFromQuery && themeFromQuery !== theme) {
+      setTheme(themeFromQuery);
+    }
+  }, [themeFromQuery, theme, setTheme]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    loadArticle(url);
+    const trimmed = url.trim();
+    if (!trimmed) return;
+    setUrl(trimmed);
+    setQueryStates({ url: trimmed });
   }
 
   const handleCopyLink = useCallback(async () => {
     if (!article || !url) return;
-    const shareUrl = `${window.location.origin}/reader?url=${encodeURIComponent(url)}`;
+    const params = new URLSearchParams();
+    params.set("url", url);
+    if (effectiveWpm !== 300) params.set("wpm", String(effectiveWpm));
+    if (effectiveTheme !== "black") params.set("theme", effectiveTheme);
+    if (effectiveFontSize !== "md") params.set("fontSize", effectiveFontSize);
+    const shareUrl = `${window.location.origin}/reader?${params.toString()}`;
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopiedLink(true);
@@ -494,7 +553,13 @@ export default function ReaderPage() {
     } catch {
       // Ignore
     }
-  }, [article, url]);
+  }, [
+    article,
+    url,
+    effectiveWpm,
+    effectiveTheme,
+    effectiveFontSize,
+  ]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -527,7 +592,7 @@ export default function ReaderPage() {
     const words = parseWords(articleText);
     return calculateReadingTimeMs(
       words,
-      wordsPerMinute,
+      effectiveWpm,
       sentenceEndDurationMs,
       speechBreakDurationMs,
       0,
@@ -535,7 +600,7 @@ export default function ReaderPage() {
     );
   }, [
     articleText,
-    wordsPerMinute,
+    effectiveWpm,
     sentenceEndDurationMs,
     speechBreakDurationMs,
   ]);
@@ -607,7 +672,7 @@ export default function ReaderPage() {
                         key={a.url}
                         onClick={() => {
                           setUrl(a.url);
-                          loadArticle(a.url);
+                          setQueryStates({ url: a.url });
                         }}
                         className="max-w-[min(18rem,85vw)] cursor-pointer"
                       >
@@ -707,10 +772,10 @@ export default function ReaderPage() {
                   <div className="min-h-0 flex-1 overflow-y-auto">
                     <ReaderSettingsContent
                       idPrefix=""
-                      theme={theme}
-                      setTheme={setTheme}
-                      fontSize={fontSize}
-                      setFontSize={setFontSize}
+                      theme={effectiveTheme}
+                      setTheme={handleSetTheme}
+                      fontSize={effectiveFontSize}
+                      setFontSize={handleSetFontSize}
                       fontFamily={fontFamily}
                       setFontFamily={setFontFamily}
                       focalColor={focalColor}
@@ -751,10 +816,10 @@ export default function ReaderPage() {
                 <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
                   <ReaderSettingsContent
                     idPrefix="drawer-"
-                    theme={theme}
-                    setTheme={setTheme}
-                    fontSize={fontSize}
-                    setFontSize={setFontSize}
+                    theme={effectiveTheme}
+                    setTheme={handleSetTheme}
+                    fontSize={effectiveFontSize}
+                    setFontSize={handleSetFontSize}
                     fontFamily={fontFamily}
                     setFontFamily={setFontFamily}
                     focalColor={focalColor}
@@ -872,11 +937,12 @@ export default function ReaderPage() {
                     key={article.content}
                     variant="panel"
                     text={articleText}
+                    wordsPerMinute={effectiveWpm}
                     onWordIndexChange={setWordIndex}
                     controlledWordIndex={wordIndex}
                     sentenceEndDurationMsAt250Wpm={sentenceEndDurationMs}
                     speechBreakDurationMsAt250Wpm={speechBreakDurationMs}
-                    fontSize={fontSize}
+                    fontSize={effectiveFontSize}
                     fontFamily={fontFamily}
                     focalColor={focalColor}
                     fillHeight
@@ -907,11 +973,12 @@ export default function ReaderPage() {
             key={article.content}
             variant="panel"
             text={articleText}
+            wordsPerMinute={effectiveWpm}
             onWordIndexChange={setWordIndex}
             controlledWordIndex={wordIndex}
             sentenceEndDurationMsAt250Wpm={sentenceEndDurationMs}
             speechBreakDurationMsAt250Wpm={speechBreakDurationMs}
-            fontSize={fontSize}
+            fontSize={effectiveFontSize}
             fontFamily={fontFamily}
             focalColor={focalColor}
           />
