@@ -379,7 +379,10 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   const editTabRef = useRef<HTMLButtonElement>(null);
   const scrubTabRef = useRef<HTMLButtonElement>(null);
   const tabListRef = useRef<HTMLDivElement>(null);
-  const [pillStyle, setPillStyle] = useState<{ left: number; width: number } | null>(null);
+  const [pillStyle, setPillStyle] = useState<{
+    left: number;
+    width: number;
+  } | null>(null);
   const fontSize = isFull
     ? readerSettings.fontSize
     : ((props as ReaderPanelProps).fontSize ?? "md");
@@ -462,10 +465,19 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     if (!tab || !list) return;
     const tabRect = tab.getBoundingClientRect();
     const listRect = list.getBoundingClientRect();
-    setPillStyle({
-      left: tabRect.left - listRect.left,
-      width: tabRect.width,
-    });
+    const baseLeft = tabRect.left - listRect.left;
+    const baseWidth = tabRect.width;
+    if (inputTab === "edit") {
+      setPillStyle({
+        left: baseLeft - 1,
+        width: baseWidth,
+      });
+    } else {
+      setPillStyle({
+        left: baseLeft,
+        width: baseWidth - 1,
+      });
+    }
   }, [isFull, inputTab]);
 
   // Scroll scrub view to keep highlighted word visible
