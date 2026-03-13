@@ -116,8 +116,26 @@ function subscribe(listener: () => void) {
   };
 }
 
+let cachedSnapshot: StoredSettings | null = null;
+
+function shallowEqualSettings(a: StoredSettings, b: StoredSettings): boolean {
+  return (
+    a.fontSize === b.fontSize &&
+    a.fontFamily === b.fontFamily &&
+    a.focalColor === b.focalColor &&
+    a.sentenceEndDurationMs === b.sentenceEndDurationMs &&
+    a.speechBreakDurationMs === b.speechBreakDurationMs &&
+    a.wordsPerMinute === b.wordsPerMinute
+  );
+}
+
 function getSnapshot(): StoredSettings {
-  return loadStored();
+  const next = loadStored();
+  if (cachedSnapshot && shallowEqualSettings(cachedSnapshot, next)) {
+    return cachedSnapshot;
+  }
+  cachedSnapshot = next;
+  return next;
 }
 
 function getServerSnapshot(): StoredSettings {
