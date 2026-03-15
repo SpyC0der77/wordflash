@@ -20,6 +20,7 @@ import {
   BookOpen,
   Gauge,
   History,
+  Info,
   Link2,
   Loader2,
   Menu,
@@ -732,6 +733,12 @@ export default function ReaderPage() {
               >
                 <Bookmark className="size-4" />
                 Bookmarklet
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/about" className="cursor-pointer">
+                  <Info className="size-4" />
+                  About
+                </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

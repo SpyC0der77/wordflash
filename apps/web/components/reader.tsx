@@ -920,6 +920,12 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
         >
           Article Reader
         </Link>
+        <Link
+          href="/about"
+          className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          About
+        </Link>
         {isDesktop ? (
           <Dialog.Root open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
             <Dialog.Trigger asChild>
