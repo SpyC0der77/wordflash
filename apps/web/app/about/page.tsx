@@ -23,7 +23,7 @@ export default function AboutPage() {
           How WordFlash speeds up reading
         </h1>
 
-        <p className="lead text-lg text-muted-foreground">
+        <p className="text-lg leading-7 text-muted-foreground">
           WordFlash uses a technique called <strong>RSVP</strong>—Rapid Serial
           Visual Presentation—to help you read faster by eliminating eye
           movement and focusing your attention on one word at a time.
@@ -75,11 +75,13 @@ export default function AboutPage() {
           </h2>
           <p className="leading-7 text-muted-foreground">
             WordFlash adds a refinement: the <strong>focal character</strong>.
-            The middle letter of each word is highlighted in a distinct color
-            (rose, blue, green, or amber). This gives your eye a precise anchor
-            point—the optimal viewing position (OVP) for each word—so you can
-            recognize words faster without scanning left-to-right within the
-            word itself.
+            It is chosen from each word&apos;s grapheme clusters (accents and
+            emoji count as single units), and the index depends on length:
+            shorter words anchor nearer the start, longer words shift right,
+            approximating an <strong>optimal viewing position (OVP)</strong>{" "}
+            rather than always the geometric center. The highlight is
+            implemented so your gaze can stay fixed while recognition stays
+            fast.
           </p>
         </section>
 
@@ -109,6 +111,7 @@ export default function AboutPage() {
               <Link
                 href="https://en.wikipedia.org/wiki/Rapid_serial_visual_presentation"
                 target="_blank"
+                rel="noopener noreferrer"
                 className="text-primary underline underline-offset-4 hover:opacity-80"
               >
                 Rapid Serial Visual Presentation on Wikipedia

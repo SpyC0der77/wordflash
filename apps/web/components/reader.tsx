@@ -53,7 +53,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const SAMPLE_TEXT =
-  "Paste your own text below, focus on the red letter, press play, and let the words flow.";
+  "Paste your own text below, focus on the highlighted letter, press play, and let the words flow.";
 
 const SENTENCE_END_DELAY_MS_AT_250_WPM = 500;
 const PAUSE_PUNCTUATION_DELAY_MS_AT_250_WPM = 250;
