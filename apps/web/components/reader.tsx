@@ -62,6 +62,8 @@ const DEFAULT_SPEECH_BREAK_MS = 250;
 
 interface ReaderBaseProps {
   wordsPerMinute?: number;
+  /** When `wordsPerMinute` is controlled by the parent, wire this so the WPM control updates state (e.g. URL + persisted settings). */
+  onWordsPerMinuteChange?: (value: number) => void;
   onWordIndexChange?: (index: number) => void;
   onComplete?: () => void;
   sentenceEndDurationMsAt250Wpm?: number;
@@ -449,9 +451,10 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   const [wordIndex, setWordIndex] = useState(() => controlledWordIndex ?? 0);
   const wordsPerMinute = props.wordsPerMinute ?? readerSettings.wordsPerMinute;
   const setWordsPerMinute =
-    props.wordsPerMinute !== undefined
+    props.onWordsPerMinuteChange ??
+    (props.wordsPerMinute !== undefined
       ? () => {}
-      : readerSettings.setWordsPerMinute;
+      : readerSettings.setWordsPerMinute);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [inputTab, setInputTab] = useState<"edit" | "scrub">("edit");

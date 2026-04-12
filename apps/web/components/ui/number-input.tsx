@@ -52,6 +52,7 @@ export function NumberInput({
       <div className="flex items-baseline justify-center gap-0.5 border-x border-input bg-transparent px-3 py-2">
         <input
           type="number"
+          inputMode="numeric"
           value={value}
           onChange={handleInputChange}
           min={min}

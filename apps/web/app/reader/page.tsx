@@ -272,6 +272,8 @@ interface PreviousArticle {
 
 const WPM_MIN = 50;
 const WPM_MAX = 1200;
+/** Matches persisted default; omit `wpm` from URL when equal (see copy-link and nuqs clear-on-default). */
+const WPM_DEFAULT = 300;
 
 export default function ReaderPage() {
   const [queryStates, setQueryStates] = useQueryStates(readerSearchParams);
@@ -291,6 +293,7 @@ export default function ReaderPage() {
     setFocalColor,
     setSentenceEndDurationMs,
     setSpeechBreakDurationMs,
+    setWordsPerMinute,
     resetDefaults,
   } = readerSettings;
 
@@ -320,6 +323,17 @@ export default function ReaderPage() {
       setQueryStates((prev) => ({ ...prev, fontSize: f }));
     },
     [setFontSize, setQueryStates],
+  );
+
+  const handleWordsPerMinuteChange = useCallback(
+    (next: number) => {
+      setWordsPerMinute(next);
+      setQueryStates((prev) => ({
+        ...prev,
+        wpm: next === WPM_DEFAULT ? 0 : next,
+      }));
+    },
+    [setWordsPerMinute, setQueryStates],
   );
 
   const [url, setUrl] = useState("");
@@ -575,7 +589,7 @@ export default function ReaderPage() {
     if (!article || !url) return;
     const params = new URLSearchParams();
     params.set("url", url);
-    if (effectiveWpm !== 300) params.set("wpm", String(effectiveWpm));
+    if (effectiveWpm !== WPM_DEFAULT) params.set("wpm", String(effectiveWpm));
     if (effectiveTheme !== "black") params.set("theme", effectiveTheme);
     if (effectiveFontSize !== "md") params.set("fontSize", effectiveFontSize);
     const shareUrl = `${window.location.origin}/reader?${params.toString()}`;
@@ -982,6 +996,7 @@ export default function ReaderPage() {
                     variant="panel"
                     text={articleText}
                     wordsPerMinute={effectiveWpm}
+                    onWordsPerMinuteChange={handleWordsPerMinuteChange}
                     onWordIndexChange={setWordIndex}
                     controlledWordIndex={wordIndex}
                     sentenceEndDurationMsAt250Wpm={sentenceEndDurationMs}
@@ -1018,6 +1033,7 @@ export default function ReaderPage() {
             variant="panel"
             text={articleText}
             wordsPerMinute={effectiveWpm}
+            onWordsPerMinuteChange={handleWordsPerMinuteChange}
             onWordIndexChange={setWordIndex}
             controlledWordIndex={wordIndex}
             sentenceEndDurationMsAt250Wpm={sentenceEndDurationMs}
