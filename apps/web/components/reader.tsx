@@ -515,6 +515,9 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     () => getWordParts(activeWord),
     [activeWord],
   );
+  const wordFocalContainerRef = useRef<HTMLDivElement>(null);
+  const wordLineRef = useRef<HTMLDivElement>(null);
+  const [focalTranslateX, setFocalTranslateX] = useState(0);
   const mountedRef = useRef(false);
 
   const setEffectiveWordIndex = useCallback(
@@ -752,8 +755,6 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     setIsPlaying(false);
   }
 
-  if (!isFull && words.length === 0) return null;
-
   const isPanelFillHeight =
     props.variant === "panel" && (props as ReaderPanelProps).fillHeight;
 
@@ -772,6 +773,64 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     FONT_FAMILIES[effectiveFontFamily].className,
   );
   const focalColorClassName = FOCAL_COLORS[effectiveFocalColor].className;
+
+  // Keep the focal grapheme centered on the guide; one inline line preserves kerning (split grid cells do not).
+  useLayoutEffect(() => {
+    let cancelled = false;
+    let raf = 0;
+
+    function measure() {
+      const container = wordFocalContainerRef.current;
+      const line = wordLineRef.current;
+      if (!container || !line || words.length === 0) {
+        setFocalTranslateX(0);
+        return;
+      }
+      const focalEl = line.querySelector<HTMLElement>("[data-focal-letter]");
+      if (!focalEl) {
+        setFocalTranslateX(0);
+        return;
+      }
+      const cr = container.getBoundingClientRect();
+      const guideX = cr.left + cr.width / 2;
+      const fr = focalEl.getBoundingClientRect();
+      const focalCenterX = fr.left + fr.width / 2;
+      setFocalTranslateX(guideX - focalCenterX);
+    }
+
+    function scheduleMeasure() {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        if (cancelled) return;
+        measure();
+      });
+    }
+
+    if (typeof document !== "undefined" && document.fonts?.ready) {
+      void document.fonts.ready.then(scheduleMeasure);
+    } else {
+      scheduleMeasure();
+    }
+
+    const container = wordFocalContainerRef.current;
+    const ro = new ResizeObserver(scheduleMeasure);
+    if (container) ro.observe(container);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, [
+    activeWord,
+    activeWordIndex,
+    focalCharacter,
+    left,
+    right,
+    words.length,
+    wordDisplayClassName,
+  ]);
+
+  if (!isFull && words.length === 0) return null;
 
   const content = (
     <>
@@ -805,18 +864,27 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
           />
 
           <div
-            className={cn(
-              "grid w-full max-w-2xl grid-cols-[1fr_auto_1fr] items-baseline px-3 leading-none sm:px-6",
-              wordDisplayClassName,
-            )}
+            ref={wordFocalContainerRef}
+            className="flex w-full max-w-2xl justify-center overflow-hidden px-3 sm:px-6"
           >
-            <span className="justify-self-end pr-1 text-zinc-700 dark:text-zinc-100">
-              {left}
-            </span>
-            <span className={focalColorClassName}>{focalCharacter || "•"}</span>
-            <span className="justify-self-start pl-1 text-zinc-700 dark:text-zinc-100">
-              {right}
-            </span>
+            <div
+              ref={wordLineRef}
+              className={cn(
+                "inline-flex max-w-full whitespace-nowrap leading-none",
+                wordDisplayClassName,
+              )}
+              style={{ transform: `translateX(${focalTranslateX}px)` }}
+            >
+              {left ? (
+                <span className="text-zinc-700 dark:text-zinc-100">{left}</span>
+              ) : null}
+              <span className={focalColorClassName} data-focal-letter>
+                {focalCharacter || "•"}
+              </span>
+              {right ? (
+                <span className="text-zinc-700 dark:text-zinc-100">{right}</span>
+              ) : null}
+            </div>
           </div>
         </div>
 
