@@ -491,6 +491,9 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   const setSpeechBreakDurationMs = readerSettings.setSpeechBreakDurationMs;
   const resetDefaults = readerSettings.resetDefaults;
   const timeoutRef = useRef<number | null>(null);
+  const rsvpLeftRef = useRef<HTMLSpanElement>(null);
+  const rsvpRightRef = useRef<HTMLSpanElement>(null);
+  const rsvpRowRef = useRef<HTMLDivElement>(null);
 
   const effectiveSentenceEndMs = isFull
     ? sentenceEndDurationMs
@@ -752,8 +755,6 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     setIsPlaying(false);
   }
 
-  if (!isFull && words.length === 0) return null;
-
   const isPanelFillHeight =
     props.variant === "panel" && (props as ReaderPanelProps).fillHeight;
 
@@ -772,6 +773,53 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     FONT_FAMILIES[effectiveFontFamily].className,
   );
   const focalColorClassName = FOCAL_COLORS[effectiveFocalColor].className;
+
+  useLayoutEffect(() => {
+    const rowForCleanup = rsvpRowRef.current;
+    if (!rowForCleanup) return;
+
+    let cancelled = false;
+    function measure() {
+      if (cancelled) return;
+      const row = rsvpRowRef.current;
+      const le = rsvpLeftRef.current;
+      const re = rsvpRightRef.current;
+      if (!row || !le || !re) {
+        row?.style.removeProperty("transform");
+        return;
+      }
+      const l = le.getBoundingClientRect().width;
+      const r = re.getBoundingClientRect().width;
+      row.style.transform = `translateX(${(r - l) / 2}px)`;
+    }
+
+    const le = rsvpLeftRef.current;
+    const re = rsvpRightRef.current;
+    if (!le || !re) {
+      rowForCleanup.style.removeProperty("transform");
+      return;
+    }
+
+    measure();
+    if (typeof document !== "undefined" && document.fonts?.ready) {
+      void document.fonts.ready.then(measure);
+    }
+
+    let ro: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(measure);
+      ro.observe(le);
+      ro.observe(re);
+    }
+
+    return () => {
+      cancelled = true;
+      ro?.disconnect();
+      rowForCleanup.style.removeProperty("transform");
+    };
+  }, [left, focalCharacter, right, effectiveFontSize, effectiveFontFamily]);
+
+  if (!isFull && words.length === 0) return null;
 
   const content = (
     <>
@@ -804,19 +852,30 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
             )}
           />
 
-          <div
-            className={cn(
-              "grid w-full max-w-2xl grid-cols-[1fr_auto_1fr] items-baseline px-3 leading-none sm:px-6",
-              wordDisplayClassName,
-            )}
-          >
-            <span className="justify-self-end pr-1 text-zinc-700 dark:text-zinc-100">
-              {left}
-            </span>
-            <span className={focalColorClassName}>{focalCharacter || "•"}</span>
-            <span className="justify-self-start pl-1 text-zinc-700 dark:text-zinc-100">
-              {right}
-            </span>
+          <div className="flex w-full max-w-2xl items-center justify-center px-3 sm:px-6">
+            <div
+              ref={rsvpRowRef}
+              className={cn(
+                "inline-flex items-baseline leading-none",
+                wordDisplayClassName,
+              )}
+            >
+              <span
+                ref={rsvpLeftRef}
+                className="text-zinc-700 dark:text-zinc-100"
+              >
+                {left}
+              </span>
+              <span className={focalColorClassName}>
+                {focalCharacter || "•"}
+              </span>
+              <span
+                ref={rsvpRightRef}
+                className="text-zinc-700 dark:text-zinc-100"
+              >
+                {right}
+              </span>
+            </div>
           </div>
         </div>
 
