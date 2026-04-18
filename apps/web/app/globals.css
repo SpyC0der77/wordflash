@@ -228,9 +228,15 @@ body {
   height: auto;
 }
 
-.reader-article [data-word-index].reader-highlight {
-  background: oklch(0.488 0.243 264.376 / 50%);
+/* Same ring/background box as .reader-highlight so the active word does not shift layout */
+[data-word-index] {
   border-radius: 2px;
+  box-shadow: 0 0 0 1px transparent;
+  background-color: transparent;
+}
+
+[data-word-index].reader-highlight {
+  background: oklch(0.488 0.243 264.376 / 50%);
   box-shadow: 0 0 0 1px oklch(0.488 0.243 264.376 / 60%);
 }
 
@@ -258,9 +264,12 @@ body {
     line-height: 1.6;
   }
 
-  .reader-article [data-word-index].reader-highlight {
-    background: transparent !important;
+  [data-word-index] {
     box-shadow: none !important;
+  }
+
+  [data-word-index].reader-highlight {
+    background: transparent !important;
   }
 
   body {

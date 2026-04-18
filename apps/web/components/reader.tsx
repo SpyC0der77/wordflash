@@ -1177,7 +1177,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
             value={inputText}
             onChange={(e) => handleTextChange(e.target.value)}
             placeholder="Paste text here..."
-            className="min-h-44 resize-y"
+            className="min-h-44 resize-y py-3 md:text-base leading-7"
             aria-labelledby="reader-edit-tab"
           />
         ) : (
@@ -1187,7 +1187,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
             role="tabpanel"
             aria-labelledby="reader-scrub-tab"
             className={cn(
-              "reader-article min-h-44 max-h-64 overflow-y-auto rounded-lg border border-input bg-background px-3 py-3 text-base leading-7",
+              "min-h-44 max-h-64 overflow-y-auto rounded-lg border border-input bg-background px-3 py-3 text-base leading-7",
               "cursor-pointer [&_[data-word-index]]:cursor-pointer [&_[data-word-index]]:rounded-sm [&_[data-word-index]]:transition-colors [&_[data-word-index]]:hover:bg-muted/50",
             )}
           >
