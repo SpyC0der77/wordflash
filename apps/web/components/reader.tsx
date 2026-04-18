@@ -801,13 +801,20 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     }
 
     measure();
-    void document.fonts.ready.then(measure);
-    const ro = new ResizeObserver(measure);
-    ro.observe(le);
-    ro.observe(re);
+    if (typeof document !== "undefined" && document.fonts?.ready) {
+      void document.fonts.ready.then(measure);
+    }
+
+    let ro: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(measure);
+      ro.observe(le);
+      ro.observe(re);
+    }
+
     return () => {
       cancelled = true;
-      ro.disconnect();
+      ro?.disconnect();
       rowForCleanup.style.removeProperty("transform");
     };
   }, [left, focalCharacter, right, effectiveFontSize, effectiveFontFamily]);

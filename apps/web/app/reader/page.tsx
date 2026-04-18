@@ -487,9 +487,19 @@ export default function ReaderPage() {
     const setHeight = () =>
       setPanelHeight(!isCompactView ? el.offsetHeight : 0);
     setHeight();
-    const ro = new ResizeObserver(setHeight);
-    ro.observe(el);
-    return () => ro.disconnect();
+
+    let ro: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(setHeight);
+      ro.observe(el);
+    } else {
+      window.addEventListener("resize", setHeight);
+    }
+
+    return () => {
+      ro?.disconnect();
+      if (!ro) window.removeEventListener("resize", setHeight);
+    };
   }, [article, isCompactView]);
 
   const loadArticle = useCallback(async (articleUrl: string) => {
