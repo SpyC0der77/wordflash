@@ -60,9 +60,6 @@ const PAUSE_PUNCTUATION_DELAY_MS_AT_250_WPM = 250;
 const DEFAULT_SENTENCE_END_MS = 500;
 const DEFAULT_SPEECH_BREAK_MS = 250;
 
-const TEXT_PANE_CLASSNAME =
-  "min-h-44 w-full resize-y whitespace-pre-wrap rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-xs md:text-sm dark:bg-input/30";
-
 const SENTENCE_TONE_FADE_MS_AT_250_WPM = 300;
 
 function visibleSentenceCue(
@@ -189,6 +186,9 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   const timeoutRef = useRef<number | null>(null);
   const [isGlyphLeading, setIsGlyphLeading] = useState(false);
   const [glyphHoldExpired, setGlyphHoldExpired] = useState(true);
+  const rsvpLeftRef = useRef<HTMLSpanElement>(null);
+  const rsvpRightRef = useRef<HTMLSpanElement>(null);
+  const rsvpRowRef = useRef<HTMLDivElement>(null);
 
   const effectiveSentenceEndMs = isFull
     ? sentenceEndDurationMs
@@ -517,8 +517,6 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     setIsPlaying(false);
   }
 
-  if (!isFull && words.length === 0) return null;
-
   const isPanelFillHeight =
     props.variant === "panel" && Boolean((props as ReaderPanelProps).fillHeight);
 
@@ -556,6 +554,53 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     fadeOutMs: sentenceToneFadeOutMs,
     fadeInMs: sentenceToneFadeInMs,
   } = getPunctuationGlyphTiming(0, sentenceToneFadeMs, sentenceToneLeadMs);
+
+  useLayoutEffect(() => {
+    const rowForCleanup = rsvpRowRef.current;
+    if (!rowForCleanup) return;
+
+    let cancelled = false;
+    function measure() {
+      if (cancelled) return;
+      const row = rsvpRowRef.current;
+      const le = rsvpLeftRef.current;
+      const re = rsvpRightRef.current;
+      if (!row || !le || !re) {
+        row?.style.removeProperty("transform");
+        return;
+      }
+      const l = le.getBoundingClientRect().width;
+      const r = re.getBoundingClientRect().width;
+      row.style.transform = `translateX(${(r - l) / 2}px)`;
+    }
+
+    const le = rsvpLeftRef.current;
+    const re = rsvpRightRef.current;
+    if (!le || !re) {
+      rowForCleanup.style.removeProperty("transform");
+      return;
+    }
+
+    measure();
+    if (typeof document !== "undefined" && document.fonts?.ready) {
+      void document.fonts.ready.then(measure);
+    }
+
+    let ro: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(measure);
+      ro.observe(le);
+      ro.observe(re);
+    }
+
+    return () => {
+      cancelled = true;
+      ro?.disconnect();
+      rowForCleanup.style.removeProperty("transform");
+    };
+  }, [left, focalCharacter, right, effectiveFontSize, effectiveFontFamily]);
+
+  if (!isFull && words.length === 0) return null;
 
   const content = (
     <>
@@ -601,19 +646,30 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
             )}
           />
 
-          <div
-            className={cn(
-              "relative z-10 grid w-full max-w-2xl grid-cols-[1fr_auto_1fr] items-baseline px-3 leading-none sm:px-6",
-              wordDisplayClassName,
-            )}
-          >
-            <span className="justify-self-end pr-1 text-zinc-700 dark:text-zinc-100">
-              {left}
-            </span>
-            <span className={focalColorClassName}>{focalCharacter || "•"}</span>
-            <span className="justify-self-start pl-1 text-zinc-700 dark:text-zinc-100">
-              {right}
-            </span>
+          <div className="relative z-10 flex w-full max-w-2xl items-center justify-center px-3 sm:px-6">
+            <div
+              ref={rsvpRowRef}
+              className={cn(
+                "inline-flex items-baseline leading-none",
+                wordDisplayClassName,
+              )}
+            >
+              <span
+                ref={rsvpLeftRef}
+                className="text-zinc-700 dark:text-zinc-100"
+              >
+                {left}
+              </span>
+              <span className={focalColorClassName}>
+                {focalCharacter || "•"}
+              </span>
+              <span
+                ref={rsvpRightRef}
+                className="text-zinc-700 dark:text-zinc-100"
+              >
+                {right}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -959,7 +1015,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
             value={inputText}
             onChange={(e) => handleTextChange(e.target.value)}
             placeholder="Paste text here..."
-            className={TEXT_PANE_CLASSNAME}
+            className="min-h-44 resize-y py-3 md:text-base leading-7"
             aria-labelledby="reader-edit-tab"
           />
         ) : (
@@ -969,8 +1025,8 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
             role="tabpanel"
             aria-labelledby="reader-scrub-tab"
             className={cn(
-              TEXT_PANE_CLASSNAME,
-              "cursor-pointer [&_[data-word-index]]:cursor-pointer",
+              "min-h-44 max-h-64 overflow-y-auto rounded-lg border border-input bg-background px-3 py-3 text-base leading-7",
+              "cursor-pointer [&_[data-word-index]]:cursor-pointer [&_[data-word-index]]:rounded-sm [&_[data-word-index]]:transition-colors [&_[data-word-index]]:hover:bg-muted/50",
             )}
           >
             {words.length === 0 ? (
@@ -986,10 +1042,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
                   <span
                     key={i}
                     data-word-index={i}
-                    className={cn(
-                      i === activeWordIndex &&
-                        "reader-highlight rounded-[2px] bg-[oklch(0.488_0.243_264.376/0.5)] shadow-[0_0_0_1px_oklch(0.488_0.243_264.376/0.6)]",
-                    )}
+                    className={cn(i === activeWordIndex && "reader-highlight")}
                     onClick={() => {
                       setEffectiveWordIndex(i);
                       setIsPlaying(false);
