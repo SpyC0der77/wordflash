@@ -1,8 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   calculateReadingTimeMs,
+  getPunctuationGlyphTiming,
+  getSentenceEndIndex,
+  getSentenceToneMark,
+  getSentenceToneMarkAt,
+  LINE_BREAK_PAUSE_MULTIPLIER,
   wordEndsSentence,
   wordHasPausePunctuation,
+  wordStartsSentence,
 } from "./word-timing";
 
 describe("wordEndsSentence", () => {
@@ -123,6 +129,63 @@ describe("wordHasPausePunctuation", () => {
   });
 });
 
+describe("getSentenceToneMark", () => {
+  it("returns ? for questions", () => {
+    expect(getSentenceToneMark("really?")).toBe("?");
+    expect(getSentenceToneMark("what?")).toBe("?");
+    expect(getSentenceToneMark("really?'")).toBe("?");
+  });
+
+  it("returns ! for exclamations", () => {
+    expect(getSentenceToneMark("wow!")).toBe("!");
+    expect(getSentenceToneMark("stop!")).toBe("!");
+  });
+
+  it("returns . for statements", () => {
+    expect(getSentenceToneMark("end.")).toBe(".");
+    expect(getSentenceToneMark('said."')).toBe(".");
+    expect(getSentenceToneMark("Wait…")).toBe(".");
+  });
+
+  it("prefers ? when both ? and ! are present", () => {
+    expect(getSentenceToneMark("What?!")).toBe("?");
+    expect(getSentenceToneMark("Really!?")).toBe("?");
+  });
+
+  it("returns null when there is no sentence-ending tone mark", () => {
+    expect(getSentenceToneMark("hello")).toBe(null);
+    expect(getSentenceToneMark("well,")).toBe(null);
+    expect(getSentenceToneMark("(1)")).toBe(null);
+    expect(getSentenceToneMark("")).toBe(null);
+  });
+});
+
+describe("getSentenceToneMarkAt", () => {
+  it("looks ahead to the current sentence's ending mark", () => {
+    const words = ["How", "are", "you?", "I", "am", "fine."];
+    expect(getSentenceToneMarkAt(words, 0)).toBe("?");
+    expect(getSentenceToneMarkAt(words, 2)).toBe("?");
+    expect(getSentenceToneMarkAt(words, 3)).toBe(".");
+  });
+
+  it("defaults to . when the sentence has no ending punctuation", () => {
+    expect(getSentenceToneMarkAt(["just", "words"], 0)).toBe(".");
+  });
+
+  it("treats a closing parenthesis sentence end as a statement", () => {
+    expect(getSentenceToneMarkAt(["see)"], 0)).toBe(".");
+  });
+});
+
+describe("getSentenceEndIndex", () => {
+  it("returns the ending word of the current sentence", () => {
+    const words = ["How", "are", "you?", "What", "now?"];
+    expect(getSentenceEndIndex(words, 0)).toBe(2);
+    expect(getSentenceEndIndex(words, 2)).toBe(2);
+    expect(getSentenceEndIndex(words, 3)).toBe(4);
+  });
+});
+
 describe("calculateReadingTimeMs", () => {
   const words = ["Hello,", "world.", "How", "are", "you?"];
   const sentenceEndMs = 500;
@@ -229,5 +292,61 @@ describe("calculateReadingTimeMs", () => {
     );
     expect(result).toBeGreaterThan(0);
     expect(Number.isFinite(result)).toBe(true);
+  });
+
+  it("adds twice the sentence-end delay for a manual line break", () => {
+    const wpm = 300;
+    const sentenceDelay = Math.round(sentenceEndMs * (250 / wpm));
+    const plain = calculateReadingTimeMs(
+      ["hello", "world"],
+      wpm,
+      sentenceEndMs,
+      speechBreakMs
+    );
+    const withBreak = calculateReadingTimeMs(
+      ["hello", "world"],
+      wpm,
+      sentenceEndMs,
+      speechBreakMs,
+      0,
+      undefined,
+      [true, false]
+    );
+    expect(withBreak - plain).toBe(sentenceDelay * LINE_BREAK_PAUSE_MULTIPLIER);
+  });
+});
+
+describe("wordStartsSentence", () => {
+  it("treats the first word as the start of a sentence", () => {
+    expect(wordStartsSentence(["Hello", "world."], 0)).toBe(true);
+  });
+
+  it("starts a sentence after sentence-ending punctuation", () => {
+    const words = ["Hello.", "How", "are", "you?"];
+    expect(wordStartsSentence(words, 1)).toBe(true);
+    expect(wordStartsSentence(words, 2)).toBe(false);
+    expect(wordStartsSentence(words, 3)).toBe(false);
+  });
+
+  it("returns false for an empty word list", () => {
+    expect(wordStartsSentence([], 0)).toBe(false);
+  });
+});
+
+describe("getPunctuationGlyphTiming", () => {
+  it("uses visible duration as the hold, with independent fade and lead", () => {
+    expect(getPunctuationGlyphTiming(400, 300, 80)).toEqual({
+      holdMs: 400,
+      fadeOutMs: 300,
+      fadeInMs: 80,
+    });
+  });
+
+  it("clamps negative values to zero", () => {
+    expect(getPunctuationGlyphTiming(-10, -20, -30)).toEqual({
+      holdMs: 0,
+      fadeOutMs: 0,
+      fadeInMs: 0,
+    });
   });
 });

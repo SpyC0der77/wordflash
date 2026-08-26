@@ -11,12 +11,8 @@ import React, {
   useState,
 } from "react";
 import { Dialog } from "radix-ui";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+import { PunctuationGlyph } from "@/components/punctuation-glyph";
+import { ReaderSettingsContent } from "@/components/reader-settings-content";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -28,37 +24,58 @@ import {
 } from "@/components/ui/drawer";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { NumberInput } from "@/components/ui/number-input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Kbd } from "@/components/ui/kbd";
 import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  FOCAL_COLORS,
+  FONT_FAMILIES,
+  FONT_SIZES,
+  type FocalColorKey,
+  type FontFamilyKey,
+  type FontSizeKey,
+} from "@/lib/reader-appearance";
 import { useReaderSettings } from "@/lib/reader-settings-context";
 import { useReduceMotion } from "@/lib/reduce-motion-context";
 import { useReduceTransparency } from "@/lib/reduce-transparency-context";
-import { useTheme, THEMES, type Theme } from "@/lib/theme-context";
+import { useTheme } from "@/lib/theme-context";
 import {
+  LINE_BREAK_PAUSE_MULTIPLIER,
   calculateReadingTimeMs,
+  getPunctuationGlyphTiming,
+  getSentenceToneMarkAt,
   getWordParts,
-  parseWords,
+  parseWordsDetailed,
   wordEndsSentence,
   wordHasPausePunctuation,
+  wordStartsSentence,
+  type SentenceToneMark,
 } from "@/lib/reader";
 import { cn } from "@/lib/utils";
 
 const SAMPLE_TEXT =
-  "Paste your own text below, focus on the highlighted letter, press play, and let the words flow.";
+  "Paste your own text below, focus on the highlighted letter, press play, and let the words flow. Does this feel fast? Try an exclamation too!";
 
 const SENTENCE_END_DELAY_MS_AT_250_WPM = 500;
 const PAUSE_PUNCTUATION_DELAY_MS_AT_250_WPM = 250;
 const DEFAULT_SENTENCE_END_MS = 500;
 const DEFAULT_SPEECH_BREAK_MS = 250;
+
+const SENTENCE_TONE_FADE_MS_AT_250_WPM = 300;
+
+function visibleSentenceCue(
+  mark: SentenceToneMark | null,
+): "?" | "!" | null {
+  return mark === "?" || mark === "!" ? mark : null;
+}
+
+export {
+  FOCAL_COLORS,
+  FONT_FAMILIES,
+  FONT_SIZES,
+  type FocalColorKey,
+  type FontFamilyKey,
+  type FontSizeKey,
+};
 
 interface ReaderBaseProps {
   wordsPerMinute?: number;
@@ -74,347 +91,6 @@ interface ReaderBaseProps {
 
 interface ReaderFullProps extends ReaderBaseProps {
   variant: "full";
-}
-
-export const FONT_SIZES = {
-  sm: { label: "Small", className: "text-3xl sm:text-4xl md:text-5xl" },
-  md: { label: "Medium", className: "text-4xl sm:text-5xl md:text-6xl" },
-  lg: { label: "Large", className: "text-5xl sm:text-6xl md:text-7xl" },
-  xl: { label: "Extra large", className: "text-6xl sm:text-7xl md:text-8xl" },
-} as const;
-
-export const FONT_FAMILIES = {
-  sans: { label: "Sans", className: "font-sans" },
-  serif: { label: "Serif", className: "font-serif" },
-  mono: { label: "Mono", className: "font-mono" },
-} as const;
-
-export const FOCAL_COLORS = {
-  rose: {
-    label: "Rose",
-    className: "text-rose-500",
-    previewClass: "bg-rose-500",
-  },
-  blue: {
-    label: "Blue",
-    className: "text-blue-500",
-    previewClass: "bg-blue-500",
-  },
-  green: {
-    label: "Green",
-    className: "text-green-500",
-    previewClass: "bg-green-500",
-  },
-  amber: {
-    label: "Amber",
-    className: "text-amber-500",
-    previewClass: "bg-amber-500",
-  },
-} as const;
-
-export type FontSizeKey = keyof typeof FONT_SIZES;
-export type FontFamilyKey = keyof typeof FONT_FAMILIES;
-export type FocalColorKey = keyof typeof FOCAL_COLORS;
-
-interface ReaderSettingsContentProps {
-  idPrefix: string;
-  theme: Theme;
-  setTheme: (v: Theme) => void;
-  fontSize: FontSizeKey;
-  setFontSize: (v: FontSizeKey) => void;
-  fontFamily: FontFamilyKey;
-  setFontFamily: (v: FontFamilyKey) => void;
-  focalColor: FocalColorKey;
-  setFocalColor: (v: FocalColorKey) => void;
-  sentenceEndDurationMs: number;
-  setSentenceEndDurationMs: (v: number) => void;
-  speechBreakDurationMs: number;
-  setSpeechBreakDurationMs: (v: number) => void;
-  reduceTransparency: boolean;
-  setReduceTransparency: (v: boolean) => void;
-  reduceMotion: boolean;
-  setReduceMotion: (v: boolean) => void;
-  onResetDefaults: () => void;
-}
-
-export function ReaderSettingsContent({
-  idPrefix,
-  theme,
-  setTheme,
-  fontSize,
-  setFontSize,
-  fontFamily,
-  setFontFamily,
-  focalColor,
-  setFocalColor,
-  sentenceEndDurationMs,
-  setSentenceEndDurationMs,
-  speechBreakDurationMs,
-  setSpeechBreakDurationMs,
-  reduceTransparency,
-  setReduceTransparency,
-  reduceMotion,
-  setReduceMotion,
-  onResetDefaults,
-}: ReaderSettingsContentProps) {
-  const ACCORDION_ITEMS = ["timing", "colors", "font", "accessibility"] as const;
-  const STORAGE_KEY = "wordflash-settings-accordion";
-
-  const [accordionValue, setAccordionValue] = useState<string[]>([
-    ...ACCORDION_ITEMS,
-  ]);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown;
-        if (
-          Array.isArray(parsed) &&
-          parsed.every((v) => typeof v === "string")
-        ) {
-          const valid = parsed.filter((v) =>
-            ACCORDION_ITEMS.includes(v as (typeof ACCORDION_ITEMS)[number]),
-          );
-          if (valid.length > 0) {
-            setAccordionValue(valid);
-          }
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- load from localStorage on mount only
-  }, []);
-
-  const handleAccordionChange = (value: string[]) => {
-    setAccordionValue(value);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
-    } catch {
-      /* ignore */
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <Accordion
-        type="multiple"
-        value={accordionValue}
-        onValueChange={handleAccordionChange}
-        className="w-full"
-      >
-        <AccordionItem value="timing">
-          <AccordionTrigger>Timing</AccordionTrigger>
-          <AccordionContent className="space-y-4">
-            <div>
-              <label
-                htmlFor={`${idPrefix}sentence-end-full`}
-                className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-500"
-              >
-                Sentence End Duration ({sentenceEndDurationMs}ms)
-              </label>
-              <Slider
-                id={`${idPrefix}sentence-end-full`}
-                min={0}
-                max={1000}
-                step={50}
-                value={[sentenceEndDurationMs]}
-                onValueChange={([v]) =>
-                  setSentenceEndDurationMs(v ?? DEFAULT_SENTENCE_END_MS)
-                }
-              />
-            </div>
-            <div>
-              <label
-                htmlFor={`${idPrefix}speech-break-full`}
-                className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-500"
-              >
-                Speech Break Duration ({speechBreakDurationMs}ms)
-              </label>
-              <Slider
-                id={`${idPrefix}speech-break-full`}
-                min={0}
-                max={1000}
-                step={25}
-                value={[speechBreakDurationMs]}
-                onValueChange={([v]) =>
-                  setSpeechBreakDurationMs(v ?? DEFAULT_SPEECH_BREAK_MS)
-                }
-              />
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-        <AccordionItem value="colors">
-          <AccordionTrigger>Colors</AccordionTrigger>
-          <AccordionContent className="space-y-4">
-            <div>
-              <label
-                htmlFor={`${idPrefix}theme-select`}
-                className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-500"
-              >
-                Theme
-              </label>
-              <Select value={theme} onValueChange={(v) => setTheme(v as Theme)}>
-                <SelectTrigger id={`${idPrefix}theme-select`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(THEMES) as Theme[]).map((key) => (
-                    <SelectItem key={key} value={key}>
-                      {THEMES[key]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label
-                htmlFor={`${idPrefix}focal-color-select`}
-                className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-500"
-              >
-                Focal character color
-              </label>
-              <Select
-                value={focalColor}
-                onValueChange={(v) => setFocalColor(v as FocalColorKey)}
-              >
-                <SelectTrigger id={`${idPrefix}focal-color-select`}>
-                  <span className="flex items-center gap-2">
-                    <span
-                      className={cn(
-                        "size-3 shrink-0 rounded-full",
-                        FOCAL_COLORS[focalColor].previewClass,
-                      )}
-                    />
-                    <SelectValue />
-                  </span>
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(FOCAL_COLORS) as FocalColorKey[]).map((key) => (
-                    <SelectItem key={key} value={key}>
-                      <span className="flex items-center gap-2">
-                        <span
-                          className={cn(
-                            "size-3 shrink-0 rounded-full",
-                            FOCAL_COLORS[key].previewClass,
-                          )}
-                        />
-                        {FOCAL_COLORS[key].label}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-        <AccordionItem value="font">
-          <AccordionTrigger>Font</AccordionTrigger>
-          <AccordionContent className="space-y-4">
-            <div>
-              <label
-                htmlFor={`${idPrefix}font-size-select`}
-                className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-500"
-              >
-                Font size
-              </label>
-              <Select
-                value={fontSize}
-                onValueChange={(v) => setFontSize(v as FontSizeKey)}
-              >
-                <SelectTrigger id={`${idPrefix}font-size-select`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(FONT_SIZES) as FontSizeKey[]).map((key) => (
-                    <SelectItem key={key} value={key}>
-                      {FONT_SIZES[key].label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label
-                htmlFor={`${idPrefix}font-family-select`}
-                className="mb-2 block text-sm font-medium text-zinc-600 dark:text-zinc-500"
-              >
-                Font family
-              </label>
-              <Select
-                value={fontFamily}
-                onValueChange={(v) => setFontFamily(v as FontFamilyKey)}
-              >
-                <SelectTrigger id={`${idPrefix}font-family-select`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(FONT_FAMILIES) as FontFamilyKey[]).map((key) => (
-                    <SelectItem key={key} value={key}>
-                      {FONT_FAMILIES[key].label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-        <AccordionItem value="accessibility">
-          <AccordionTrigger>Accessibility</AccordionTrigger>
-          <AccordionContent className="space-y-4">
-            <div className="flex items-center justify-between gap-4">
-              <label
-                htmlFor={`${idPrefix}reduce-transparency-reader`}
-                className="text-sm font-medium text-zinc-600 dark:text-zinc-500"
-              >
-                Reduce transparency
-              </label>
-              <Switch
-                id={`${idPrefix}reduce-transparency-reader`}
-                checked={reduceTransparency}
-                onCheckedChange={setReduceTransparency}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <label
-                htmlFor={`${idPrefix}reduce-motion-reader`}
-                className="text-sm font-medium text-zinc-600 dark:text-zinc-500"
-              >
-                Reduce motion
-              </label>
-              <Switch
-                id={`${idPrefix}reduce-motion-reader`}
-                checked={reduceMotion}
-                onCheckedChange={setReduceMotion}
-              />
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
-      <Button
-        variant="outline"
-        className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
-        onClick={onResetDefaults}
-      >
-        Reset defaults
-      </Button>
-      <ul className="pt-2 text-xs text-muted-foreground list-disc pl-4 space-y-1">
-        <li>
-          <Kbd>Space</Kbd> — play/pause
-        </li>
-        <li>
-          <Kbd>R</Kbd> — restart from beginning
-        </li>
-        <li>
-          <Kbd>←</Kbd> <Kbd>→</Kbd> — skip words
-        </li>
-        <li>
-          <Kbd>Home</Kbd> <Kbd>End</Kbd> — jump to start/end
-        </li>
-      </ul>
-    </div>
-  );
 }
 
 interface ReaderPanelProps extends ReaderBaseProps {
@@ -489,8 +165,27 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   const setFocalColor = readerSettings.setFocalColor;
   const setSentenceEndDurationMs = readerSettings.setSentenceEndDurationMs;
   const setSpeechBreakDurationMs = readerSettings.setSpeechBreakDurationMs;
+  const showPunctuationGlyph = readerSettings.showPunctuationGlyph;
+  const setShowPunctuationGlyph = readerSettings.setShowPunctuationGlyph;
+  const punctuationGlyphLeadMsAt250Wpm =
+    readerSettings.punctuationGlyphLeadMs;
+  const setPunctuationGlyphLeadMs = readerSettings.setPunctuationGlyphLeadMs;
+  const punctuationGlyphDurationMsAt250Wpm =
+    readerSettings.punctuationGlyphDurationMs;
+  const setPunctuationGlyphDurationMs =
+    readerSettings.setPunctuationGlyphDurationMs;
+  const punctuationGlyphAlwaysVisible =
+    readerSettings.punctuationGlyphAlwaysVisible;
+  const setPunctuationGlyphAlwaysVisible =
+    readerSettings.setPunctuationGlyphAlwaysVisible;
+  const centerPunctuationTittleVertically =
+    readerSettings.centerPunctuationTittleVertically;
+  const setCenterPunctuationTittleVertically =
+    readerSettings.setCenterPunctuationTittleVertically;
   const resetDefaults = readerSettings.resetDefaults;
   const timeoutRef = useRef<number | null>(null);
+  const [isGlyphLeading, setIsGlyphLeading] = useState(false);
+  const [glyphHoldExpired, setGlyphHoldExpired] = useState(true);
   const rsvpLeftRef = useRef<HTMLSpanElement>(null);
   const rsvpRightRef = useRef<HTMLSpanElement>(null);
   const rsvpRowRef = useRef<HTMLDivElement>(null);
@@ -506,7 +201,8 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   const text = isFull
     ? inputText
     : (props as ReaderPanelProps | ReaderTestProps).text;
-  const words = useMemo(() => parseWords(text), [text]);
+  const { words, hasLineBreakAfter, newlinesAfter, leadingNewlines, prefixBefore } =
+    useMemo(() => parseWordsDetailed(text), [text]);
   const onWordIndexChange =
     "onWordIndexChange" in props ? props.onWordIndexChange : undefined;
   const effectiveWordIndex =
@@ -518,6 +214,16 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     () => getWordParts(activeWord),
     [activeWord],
   );
+  const glyphWordIndex =
+    isPlaying && isGlyphLeading
+      ? Math.min(activeWordIndex + 1, Math.max(0, words.length - 1))
+      : activeWordIndex;
+  const sentenceToneMark = useMemo(() => {
+    if (words.length === 0) return null;
+    return visibleSentenceCue(
+      getSentenceToneMarkAt(words, glyphWordIndex),
+    );
+  }, [words, glyphWordIndex]);
   const mountedRef = useRef(false);
 
   const setEffectiveWordIndex = useCallback(
@@ -599,7 +305,24 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
       : wordHasPausePunctuation(currentWord)
         ? pauseDelay
         : 0;
-    const delay = baseMsPerWord + extraDelay;
+    const lineBreakDelay = hasLineBreakAfter[activeWordIndex]
+      ? sentenceDelay * LINE_BREAK_PAUSE_MULTIPLIER
+      : 0;
+    const delay = baseMsPerWord + extraDelay + lineBreakDelay;
+    const rawLeadMs = Math.max(
+      0,
+      Math.round(punctuationGlyphLeadMsAt250Wpm * wpmScale),
+    );
+    const leadMs = Math.max(0, Math.min(rawLeadMs, delay));
+    const visibleMs = Math.round(
+      punctuationGlyphDurationMsAt250Wpm * wpmScale,
+    );
+    const startsSentence = wordStartsSentence(words, activeWordIndex);
+
+    // Reset lead when the current word changes; the timeout below may turn it back on.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- restart glyph flash for the new word
+    setIsGlyphLeading(false);
+    setGlyphHoldExpired(!startsSentence);
 
     timeoutRef.current = window.setTimeout(() => {
       const next = Math.min(activeWordIndex + 1, words.length - 1);
@@ -609,11 +332,43 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
       setEffectiveWordIndex(next);
     }, delay);
 
+    const upcomingCue = visibleSentenceCue(
+      getSentenceToneMarkAt(
+        words,
+        Math.min(activeWordIndex + 1, words.length - 1),
+      ),
+    );
+    const currentCue = visibleSentenceCue(
+      getSentenceToneMarkAt(words, activeWordIndex),
+    );
+
+    const glyphHideTimeout =
+      showPunctuationGlyph &&
+      startsSentence &&
+      currentCue !== null &&
+      !punctuationGlyphAlwaysVisible
+        ? window.setTimeout(() => {
+            setGlyphHoldExpired(true);
+          }, visibleMs)
+        : null;
+
+    const glyphLeadTimeout =
+      showPunctuationGlyph &&
+      upcomingCue !== null &&
+      wordEndsSentence(currentWord) &&
+      activeWordIndex < words.length - 1
+        ? window.setTimeout(() => {
+            setIsGlyphLeading(true);
+          }, Math.max(0, delay - leadMs))
+        : null;
+
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
+      if (glyphHideTimeout) clearTimeout(glyphHideTimeout);
+      if (glyphLeadTimeout) clearTimeout(glyphLeadTimeout);
     };
   }, [
     isPlaying,
@@ -621,8 +376,13 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     wordsPerMinute,
     activeWordIndex,
     words,
+    hasLineBreakAfter,
     effectiveSentenceEndMs,
     effectiveSpeechBreakMs,
+    punctuationGlyphLeadMsAt250Wpm,
+    punctuationGlyphDurationMsAt250Wpm,
+    punctuationGlyphAlwaysVisible,
+    showPunctuationGlyph,
     setEffectiveWordIndex,
   ]);
 
@@ -639,9 +399,11 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
         effectiveSpeechBreakMs,
         activeWordIndex,
         words.length - 1,
+        hasLineBreakAfter,
       ),
     [
       words,
+      hasLineBreakAfter,
       wordsPerMinute,
       activeWordIndex,
       effectiveSentenceEndMs,
@@ -756,7 +518,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   }
 
   const isPanelFillHeight =
-    props.variant === "panel" && (props as ReaderPanelProps).fillHeight;
+    props.variant === "panel" && Boolean((props as ReaderPanelProps).fillHeight);
 
   const effectiveFontSize = isFull
     ? fontSize
@@ -773,6 +535,25 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     FONT_FAMILIES[effectiveFontFamily].className,
   );
   const focalColorClassName = FOCAL_COLORS[effectiveFocalColor].className;
+  const wpmScale = 250 / wordsPerMinute;
+  const sentenceToneFadeMs = Math.max(
+    50,
+    Math.round(SENTENCE_TONE_FADE_MS_AT_250_WPM * wpmScale),
+  );
+  const sentenceToneLeadMs = Math.max(
+    0,
+    Math.round(punctuationGlyphLeadMsAt250Wpm * wpmScale),
+  );
+  const isSentenceStart = wordStartsSentence(words, activeWordIndex);
+  const cueVisible = punctuationGlyphAlwaysVisible
+    ? true
+    : isPlaying &&
+      (isGlyphLeading || (isSentenceStart && !glyphHoldExpired));
+  const {
+    holdMs: sentenceToneHoldMs,
+    fadeOutMs: sentenceToneFadeOutMs,
+    fadeInMs: sentenceToneFadeInMs,
+  } = getPunctuationGlyphTiming(0, sentenceToneFadeMs, sentenceToneLeadMs);
 
   useLayoutEffect(() => {
     const rowForCleanup = rsvpRowRef.current;
@@ -838,21 +619,34 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
             isPanelFillHeight ? "min-h-40 flex-1 sm:min-h-48" : "h-44 sm:h-60",
           )}
         >
-          <div className="pointer-events-none absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-border dark:bg-white/20" />
+          {showPunctuationGlyph && (
+            <PunctuationGlyph
+              mark={sentenceToneMark}
+              fadingOut={!cueVisible || sentenceToneMark == null}
+              fadeInDurationMs={sentenceToneFadeInMs}
+              fadeOutDurationMs={sentenceToneFadeOutMs}
+              holdDurationMs={sentenceToneHoldMs}
+              centerTittleVertically={centerPunctuationTittleVertically}
+              fontFamilyClassName={FONT_FAMILIES[effectiveFontFamily].className}
+              reduceTransparency={reduceTransparency}
+              reduceMotion={reduceMotion}
+            />
+          )}
+          <div className="pointer-events-none absolute left-1/2 top-0 z-[1] h-full w-px -translate-x-1/2 bg-border dark:bg-white/20" />
           <div
             className={cn(
-              "pointer-events-none absolute inset-x-0 h-px bg-border/80 dark:bg-white/12",
+              "pointer-events-none absolute inset-x-0 z-[1] h-px bg-border/80 dark:bg-white/12",
               isPanelFillHeight ? "top-8 sm:top-14" : "top-14",
             )}
           />
           <div
             className={cn(
-              "pointer-events-none absolute inset-x-0 h-px bg-border/80 dark:bg-white/12",
+              "pointer-events-none absolute inset-x-0 z-[1] h-px bg-border/80 dark:bg-white/12",
               isPanelFillHeight ? "bottom-8 sm:bottom-14" : "bottom-14",
             )}
           />
 
-          <div className="flex w-full max-w-2xl items-center justify-center px-3 sm:px-6">
+          <div className="relative z-10 flex w-full max-w-2xl items-center justify-center px-3 sm:px-6">
             <div
               ref={rsvpRowRef}
               className={cn(
@@ -1020,7 +814,8 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
                   Settings
                 </Dialog.Title>
                 <Dialog.Description className="mb-4 shrink-0 text-sm text-muted-foreground">
-                  Adjust pause durations (values at 250 WPM; scale with speed).
+                  Appearance, playback, and accessibility. Pause values are at
+                  250 WPM and scale with speed.
                 </Dialog.Description>
                 <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
                   <ReaderSettingsContent
@@ -1037,6 +832,28 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
                     setSentenceEndDurationMs={setSentenceEndDurationMs}
                     speechBreakDurationMs={speechBreakDurationMs}
                     setSpeechBreakDurationMs={setSpeechBreakDurationMs}
+                    showPunctuationGlyph={showPunctuationGlyph}
+                    setShowPunctuationGlyph={setShowPunctuationGlyph}
+                    punctuationGlyphLeadMs={punctuationGlyphLeadMsAt250Wpm}
+                    setPunctuationGlyphLeadMs={setPunctuationGlyphLeadMs}
+                    punctuationGlyphDurationMs={
+                      punctuationGlyphDurationMsAt250Wpm
+                    }
+                    setPunctuationGlyphDurationMs={
+                      setPunctuationGlyphDurationMs
+                    }
+                    punctuationGlyphAlwaysVisible={
+                      punctuationGlyphAlwaysVisible
+                    }
+                    setPunctuationGlyphAlwaysVisible={
+                      setPunctuationGlyphAlwaysVisible
+                    }
+                    centerPunctuationTittleVertically={
+                      centerPunctuationTittleVertically
+                    }
+                    setCenterPunctuationTittleVertically={
+                      setCenterPunctuationTittleVertically
+                    }
                     reduceTransparency={reduceTransparency}
                     setReduceTransparency={setReduceTransparency}
                     reduceMotion={reduceMotion}
@@ -1067,7 +884,8 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
               <DrawerHeader className="shrink-0 text-left">
                 <DrawerTitle>Settings</DrawerTitle>
                 <DrawerDescription>
-                  Adjust pause durations (values at 250 WPM; scale with speed).
+                  Appearance, playback, and accessibility. Pause values are at
+                  250 WPM and scale with speed.
                 </DrawerDescription>
               </DrawerHeader>
               <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide px-4 pb-6">
@@ -1085,6 +903,26 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
                   setSentenceEndDurationMs={setSentenceEndDurationMs}
                   speechBreakDurationMs={speechBreakDurationMs}
                   setSpeechBreakDurationMs={setSpeechBreakDurationMs}
+                  showPunctuationGlyph={showPunctuationGlyph}
+                  setShowPunctuationGlyph={setShowPunctuationGlyph}
+                  punctuationGlyphLeadMs={punctuationGlyphLeadMsAt250Wpm}
+                  setPunctuationGlyphLeadMs={setPunctuationGlyphLeadMs}
+                  punctuationGlyphDurationMs={
+                    punctuationGlyphDurationMsAt250Wpm
+                  }
+                  setPunctuationGlyphDurationMs={setPunctuationGlyphDurationMs}
+                  punctuationGlyphAlwaysVisible={
+                    punctuationGlyphAlwaysVisible
+                  }
+                  setPunctuationGlyphAlwaysVisible={
+                    setPunctuationGlyphAlwaysVisible
+                  }
+                  centerPunctuationTittleVertically={
+                    centerPunctuationTittleVertically
+                  }
+                  setCenterPunctuationTittleVertically={
+                    setCenterPunctuationTittleVertically
+                  }
                   reduceTransparency={reduceTransparency}
                   setReduceTransparency={setReduceTransparency}
                   reduceMotion={reduceMotion}
@@ -1192,24 +1030,31 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
             )}
           >
             {words.length === 0 ? (
-              <p className="text-muted-foreground">
-                Paste text in Edit mode to scrub through it.
-              </p>
+              <span className="text-muted-foreground">Paste text here...</span>
             ) : (
-              words.flatMap((word, i) => [
-                ...(i > 0 ? [" " as const] : []),
-                <span
-                  key={i}
-                  data-word-index={i}
-                  className={cn(i === activeWordIndex && "reader-highlight")}
-                  onClick={() => {
-                    setEffectiveWordIndex(i);
-                    setIsPlaying(false);
-                  }}
-                >
-                  {word}
-                </span>,
-              ])
+              <>
+                {"\n".repeat(leadingNewlines)}
+                {words.flatMap((word, i) => [
+                  ...(i > 0 && (newlinesAfter[i - 1] ?? 0) === 0
+                    ? [" " as const]
+                    : []),
+                  prefixBefore[i] ?? "",
+                  <span
+                    key={i}
+                    data-word-index={i}
+                    className={cn(i === activeWordIndex && "reader-highlight")}
+                    onClick={() => {
+                      setEffectiveWordIndex(i);
+                      setIsPlaying(false);
+                    }}
+                  >
+                    {word}
+                  </span>,
+                  ...(newlinesAfter[i]
+                    ? ["\n".repeat(newlinesAfter[i] ?? 0)]
+                    : []),
+                ])}
+              </>
             )}
           </div>
         )}

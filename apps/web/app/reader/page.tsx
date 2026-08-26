@@ -27,7 +27,9 @@ import {
   Settings,
 } from "lucide-react";
 import { Dialog } from "radix-ui";
-import { Reader, type FontSizeKey } from "@/components/reader";
+import { Reader } from "@/components/reader";
+import { ReaderSettingsContent } from "@/components/reader-settings-content";
+import type { FontSizeKey } from "@/lib/reader-appearance";
 import {
   Drawer,
   DrawerContent,
@@ -50,12 +52,12 @@ import { useReaderSettings } from "@/lib/reader-settings-context";
 import { useReduceMotion } from "@/lib/reduce-motion-context";
 import { useReduceTransparency } from "@/lib/reduce-transparency-context";
 import { useTheme, type Theme } from "@/lib/theme-context";
-import { ReaderSettingsContent } from "@/app/reader/reader-settings-content";
 import {
   attachTrailingCommasToLinks,
   calculateReadingTimeMs,
   extractTextFromHtml,
   parseWords,
+  parseWordsDetailed,
   wrapWordsInHtml,
 } from "@/lib/reader";
 import { cn } from "@/lib/utils";
@@ -288,12 +290,22 @@ export default function ReaderPage() {
     sentenceEndDurationMs,
     speechBreakDurationMs,
     wordsPerMinute,
+    showPunctuationGlyph,
+    punctuationGlyphLeadMs,
+    punctuationGlyphDurationMs,
+    punctuationGlyphAlwaysVisible,
+    centerPunctuationTittleVertically,
     setFontSize,
     setFontFamily,
     setFocalColor,
     setSentenceEndDurationMs,
     setSpeechBreakDurationMs,
     setWordsPerMinute,
+    setShowPunctuationGlyph,
+    setPunctuationGlyphLeadMs,
+    setPunctuationGlyphDurationMs,
+    setPunctuationGlyphAlwaysVisible,
+    setCenterPunctuationTittleVertically,
     resetDefaults,
   } = readerSettings;
 
@@ -647,7 +659,7 @@ export default function ReaderPage() {
 
   const readingTimeMs = useMemo(() => {
     if (!articleText) return 0;
-    const words = parseWords(articleText);
+    const { words, hasLineBreakAfter } = parseWordsDetailed(articleText);
     return calculateReadingTimeMs(
       words,
       effectiveWpm,
@@ -655,6 +667,7 @@ export default function ReaderPage() {
       speechBreakDurationMs,
       0,
       words.length - 1,
+      hasLineBreakAfter,
     );
   }, [
     articleText,
@@ -832,7 +845,8 @@ export default function ReaderPage() {
                     Reader Settings
                   </Dialog.Title>
                   <Dialog.Description className="mb-4 shrink-0 text-sm text-muted-foreground">
-                    Adjust pause durations (values at 250 WPM; scale with speed).
+                    Appearance, playback, and accessibility. Pause values are at
+                    250 WPM and scale with speed.
                   </Dialog.Description>
                   <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
                     <ReaderSettingsContent
@@ -849,11 +863,32 @@ export default function ReaderPage() {
                       setSentenceEndDurationMs={setSentenceEndDurationMs}
                       speechBreakDurationMs={speechBreakDurationMs}
                       setSpeechBreakDurationMs={setSpeechBreakDurationMs}
+                      showPunctuationGlyph={showPunctuationGlyph}
+                      setShowPunctuationGlyph={setShowPunctuationGlyph}
+                      punctuationGlyphLeadMs={punctuationGlyphLeadMs}
+                      setPunctuationGlyphLeadMs={setPunctuationGlyphLeadMs}
+                      punctuationGlyphDurationMs={punctuationGlyphDurationMs}
+                      setPunctuationGlyphDurationMs={
+                        setPunctuationGlyphDurationMs
+                      }
+                      punctuationGlyphAlwaysVisible={
+                        punctuationGlyphAlwaysVisible
+                      }
+                      setPunctuationGlyphAlwaysVisible={
+                        setPunctuationGlyphAlwaysVisible
+                      }
+                      centerPunctuationTittleVertically={
+                        centerPunctuationTittleVertically
+                      }
+                      setCenterPunctuationTittleVertically={
+                        setCenterPunctuationTittleVertically
+                      }
                       reduceTransparency={reduceTransparency}
                       setReduceTransparency={setReduceTransparency}
                       reduceMotion={reduceMotion}
                       setReduceMotion={setReduceMotion}
                       showKeyboardShortcuts
+                      showShareShortcut
                       onResetDefaults={resetDefaults}
                     />
                   </div>
@@ -877,7 +912,8 @@ export default function ReaderPage() {
                 <DrawerHeader className="shrink-0 text-left">
                   <DrawerTitle>Reader Settings</DrawerTitle>
                   <DrawerDescription>
-                    Adjust pause durations (values at 250 WPM; scale with speed).
+                    Appearance, playback, and accessibility. Pause values are at
+                    250 WPM and scale with speed.
                   </DrawerDescription>
                 </DrawerHeader>
                 <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide px-4 pb-6">
@@ -895,11 +931,32 @@ export default function ReaderPage() {
                     setSentenceEndDurationMs={setSentenceEndDurationMs}
                     speechBreakDurationMs={speechBreakDurationMs}
                     setSpeechBreakDurationMs={setSpeechBreakDurationMs}
+                    showPunctuationGlyph={showPunctuationGlyph}
+                    setShowPunctuationGlyph={setShowPunctuationGlyph}
+                    punctuationGlyphLeadMs={punctuationGlyphLeadMs}
+                    setPunctuationGlyphLeadMs={setPunctuationGlyphLeadMs}
+                    punctuationGlyphDurationMs={punctuationGlyphDurationMs}
+                    setPunctuationGlyphDurationMs={
+                      setPunctuationGlyphDurationMs
+                    }
+                    punctuationGlyphAlwaysVisible={
+                      punctuationGlyphAlwaysVisible
+                    }
+                    setPunctuationGlyphAlwaysVisible={
+                      setPunctuationGlyphAlwaysVisible
+                    }
+                    centerPunctuationTittleVertically={
+                      centerPunctuationTittleVertically
+                    }
+                    setCenterPunctuationTittleVertically={
+                      setCenterPunctuationTittleVertically
+                    }
                     reduceTransparency={reduceTransparency}
                     setReduceTransparency={setReduceTransparency}
                     reduceMotion={reduceMotion}
                     setReduceMotion={setReduceMotion}
                     showKeyboardShortcuts
+                    showShareShortcut
                     onResetDefaults={resetDefaults}
                   />
                 </div>

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   attachTrailingCommasToLinks,
   parseWords,
+  parseWordsDetailed,
   getFocalCharacterIndex,
   getWordParts,
 } from "./text-preprocessing";
@@ -80,7 +81,71 @@ describe("parseWords", () => {
       expect(parseWords("\n\t  ")).toEqual([]);
     });
   });
+});
 
+describe("parseWordsDetailed", () => {
+  it("marks the word before a newline as having a line break after it", () => {
+    expect(parseWordsDetailed("hello world\nfoo bar")).toEqual({
+      words: ["hello", "world", "foo", "bar"],
+      hasLineBreakAfter: [false, true, false, false],
+      newlinesAfter: [0, 1, 0, 0],
+      leadingNewlines: 0,
+      prefixBefore: ["", "", "", ""],
+    });
+  });
+
+  it("treats consecutive blank lines as a single line-break pause", () => {
+    expect(parseWordsDetailed("hello\n\n\nworld")).toEqual({
+      words: ["hello", "world"],
+      hasLineBreakAfter: [true, false],
+      newlinesAfter: [3, 0],
+      leadingNewlines: 0,
+      prefixBefore: ["", ""],
+    });
+  });
+
+  it("does not pause for a trailing newline but still records it", () => {
+    expect(parseWordsDetailed("hello world\n")).toEqual({
+      words: ["hello", "world"],
+      hasLineBreakAfter: [false, false],
+      newlinesAfter: [0, 1],
+      leadingNewlines: 0,
+      prefixBefore: ["", ""],
+    });
+  });
+
+  it("handles CRLF line endings", () => {
+    expect(parseWordsDetailed("hello\r\nworld")).toEqual({
+      words: ["hello", "world"],
+      hasLineBreakAfter: [true, false],
+      newlinesAfter: [1, 0],
+      leadingNewlines: 0,
+      prefixBefore: ["", ""],
+    });
+  });
+
+  it("records leading newlines", () => {
+    expect(parseWordsDetailed("\n\nhello")).toEqual({
+      words: ["hello"],
+      hasLineBreakAfter: [false],
+      newlinesAfter: [0],
+      leadingNewlines: 2,
+      prefixBefore: [""],
+    });
+  });
+
+  it("preserves leading spaces and tabs on each line", () => {
+    expect(parseWordsDetailed("  hello\n\tworld next")).toEqual({
+      words: ["hello", "world", "next"],
+      hasLineBreakAfter: [true, false, false],
+      newlinesAfter: [1, 0, 0],
+      leadingNewlines: 0,
+      prefixBefore: ["  ", "\t", ""],
+    });
+  });
+});
+
+describe("parseWords punctuation", () => {
   describe("punctuation handling — punctuation stays attached to words", () => {
     it("keeps trailing period attached to word", () => {
       expect(parseWords("Hello.")).toEqual(["Hello."]);
@@ -108,9 +173,10 @@ describe("parseWords", () => {
       expect(parseWords("first; second")).toEqual(["first;", "second"]);
     });
 
-    it("keeps em dash attached", () => {
-      expect(parseWords("one—two")).toEqual(["one—two"]);
-      expect(parseWords("word—another")).toEqual(["word—another"]);
+    it("splits em dashes, keeping the dash on the preceding word", () => {
+      expect(parseWords("one—two")).toEqual(["one—", "two"]);
+      expect(parseWords("word—another")).toEqual(["word—", "another"]);
+      expect(parseWords("one—two—three")).toEqual(["one—", "two—", "three"]);
     });
 
     it("keeps hyphenated words as single tokens", () => {
@@ -118,8 +184,12 @@ describe("parseWords", () => {
       expect(parseWords("state-of-the-art")).toEqual(["state-of-the-art"]);
     });
 
-    it("keeps double hyphen (--) attached", () => {
-      expect(parseWords("word--another")).toEqual(["word--another"]);
+    it("keeps en dashes in numeric ranges as a single token", () => {
+      expect(parseWords("200–250")).toEqual(["200–250"]);
+    });
+
+    it("splits double hyphen (--), keeping it on the preceding word", () => {
+      expect(parseWords("word--another")).toEqual(["word--", "another"]);
     });
 
     it("handles mixed punctuation in sentence", () => {
@@ -220,7 +290,7 @@ describe("parseWords", () => {
 
     it("punctuation-only or nearly-empty tokens", () => {
       expect(parseWords("...")).toEqual(["..."]);
-      expect(parseWords("---")).toEqual(["---"]);
+      expect(parseWords("---")).toEqual(["--", "-"]);
       expect(parseWords("... and then")).toEqual(["...", "and", "then"]);
     });
 
