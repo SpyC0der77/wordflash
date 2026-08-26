@@ -1,12 +1,7 @@
 "use client";
 
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type TransitionEvent,
-} from "react";
+import { useLayoutEffect, useRef } from "react";
+import { usePunctuationCueFade } from "@/lib/use-punctuation-cue-fade";
 import { cn } from "@/lib/utils";
 
 interface PunctuationGlyphProps {
@@ -109,77 +104,14 @@ export function PunctuationGlyph({
 }: PunctuationGlyphProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const textRef = useRef<SVGTextElement>(null);
-  const [paintedMark, setPaintedMark] = useState(mark);
-  const [exiting, setExiting] = useState(fadingOut);
-  const exitCompleteRef = useRef(fadingOut);
-  const exitingRef = useRef(fadingOut);
-  const markRef = useRef(mark);
-  const fadingOutRef = useRef(fadingOut);
-
-  useEffect(() => {
-    markRef.current = mark;
-    fadingOutRef.current = fadingOut;
-  });
-
-  function finishExit() {
-    exitCompleteRef.current = true;
-    setPaintedMark(markRef.current);
-    if (fadingOutRef.current) return;
-    exitingRef.current = false;
-    setExiting(false);
-  }
-
-  useLayoutEffect(() => {
-    if (reduceMotion) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- snap the painted mark when motion is off
-      setPaintedMark(mark);
-      if (!fadingOut) {
-        setExiting(false);
-        exitingRef.current = false;
-        exitCompleteRef.current = true;
-      }
-      return;
-    }
-
-    if (fadingOut) {
-      if (exitingRef.current) return;
-      exitCompleteRef.current = false;
-      exitingRef.current = true;
-      setExiting(true);
-      return;
-    }
-
-    if (exitCompleteRef.current) {
-      setPaintedMark(mark);
-      exitingRef.current = false;
-      setExiting(false);
-    }
-  }, [fadingOut, mark, reduceMotion]);
-
-  useEffect(() => {
-    if (!fadingOut) return;
-    if (reduceMotion) {
-      const timeout = window.setTimeout(() => {
-        exitingRef.current = true;
-        exitCompleteRef.current = true;
-        setExiting(true);
-        setPaintedMark(markRef.current);
-      }, holdDurationMs);
-      return () => clearTimeout(timeout);
-    }
-    if (!exiting) return;
-    const waitMs = holdDurationMs + fadeOutDurationMs + 32;
-    const timeout = window.setTimeout(() => {
-      if (!exitCompleteRef.current) finishExit();
-    }, waitMs);
-    return () => clearTimeout(timeout);
-  }, [
-    exiting,
+  const { paintedMark, fadeStyle, handleTransitionEnd } = usePunctuationCueFade({
+    mark,
     fadingOut,
-    holdDurationMs,
+    fadeInDurationMs,
     fadeOutDurationMs,
+    holdDurationMs,
     reduceMotion,
-  ]);
+  });
 
   useLayoutEffect(() => {
     const svg = svgRef.current;
@@ -218,16 +150,6 @@ export function PunctuationGlyph({
 
   if (!paintedMark) return null;
 
-  const hidden = exiting;
-
-  const durationMs = hidden ? fadeOutDurationMs : fadeInDurationMs;
-  const delayMs = hidden ? holdDurationMs : 0;
-
-  function handleTransitionEnd(event: TransitionEvent<SVGSVGElement>) {
-    if (event.propertyName !== "opacity" || !exiting) return;
-    finishExit();
-  }
-
   return (
     <div
       aria-hidden
@@ -244,19 +166,7 @@ export function PunctuationGlyph({
           !reduceTransparency &&
             "[mask-image:radial-gradient(ellipse_at_center,black_22%,transparent_62%)]",
         )}
-        style={
-          reduceMotion
-            ? undefined
-            : {
-                opacity: hidden ? 0 : 1,
-                transitionProperty: "opacity",
-                transitionDuration: `${durationMs}ms`,
-                transitionDelay: `${delayMs}ms`,
-                transitionTimingFunction: hidden
-                  ? "cubic-bezier(0.4, 0, 1, 1)"
-                  : "cubic-bezier(0.22, 1, 0.36, 1)",
-              }
-        }
+        style={fadeStyle}
         onTransitionEnd={handleTransitionEnd}
       >
         <text

@@ -50,9 +50,19 @@ const DEFAULTS: StoredSettings = {
   showPunctuationGlyph: true,
   punctuationGlyphLeadMs: DEFAULT_PUNCTUATION_GLYPH_LEAD_MS,
   punctuationGlyphDurationMs: DEFAULT_PUNCTUATION_GLYPH_DURATION_MS,
-  punctuationGlyphAlwaysVisible: false,
+  punctuationGlyphAlwaysVisible: true,
   centerPunctuationTittleVertically: false,
 };
+
+function parseShowPunctuationGlyph(
+  punctuationCue: unknown,
+  showPunctuationGlyph: unknown,
+): boolean {
+  if (punctuationCue === "off") return false;
+  if (typeof punctuationCue === "string") return true;
+  if (typeof showPunctuationGlyph === "boolean") return showPunctuationGlyph;
+  return true;
+}
 
 function loadStored(): StoredSettings {
   if (typeof window === "undefined") return DEFAULTS;
@@ -61,7 +71,9 @@ function loadStored(): StoredSettings {
     const fromLegacy = !raw && !!localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) raw = localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return DEFAULTS;
-    const parsed = JSON.parse(raw) as Partial<StoredSettings>;
+    const parsed = JSON.parse(raw) as Partial<StoredSettings> & {
+      punctuationCue?: unknown;
+    };
     const result = {
       fontSize:
         parsed.fontSize && ["sm", "md", "lg", "xl"].includes(parsed.fontSize)
@@ -94,10 +106,10 @@ function loadStored(): StoredSettings {
         parsed.wordsPerMinute <= WPM_MAX
           ? parsed.wordsPerMinute
           : DEFAULTS.wordsPerMinute,
-      showPunctuationGlyph:
-        typeof parsed.showPunctuationGlyph === "boolean"
-          ? parsed.showPunctuationGlyph
-          : DEFAULTS.showPunctuationGlyph,
+      showPunctuationGlyph: parseShowPunctuationGlyph(
+        parsed.punctuationCue,
+        parsed.showPunctuationGlyph,
+      ),
       punctuationGlyphLeadMs:
         typeof parsed.punctuationGlyphLeadMs === "number" &&
         parsed.punctuationGlyphLeadMs >= 0 &&

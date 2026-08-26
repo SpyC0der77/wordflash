@@ -48,11 +48,12 @@ import {
   wordEndsSentence,
   wordHasPausePunctuation,
   wordStartsSentence,
+  type SentenceToneMark,
 } from "@/lib/reader";
 import { cn } from "@/lib/utils";
 
 const SAMPLE_TEXT =
-  "Paste your own text below, focus on the highlighted letter, press play, and let the words flow.";
+  "Paste your own text below, focus on the highlighted letter, press play, and let the words flow. Does this feel fast? Try an exclamation too!";
 
 const SENTENCE_END_DELAY_MS_AT_250_WPM = 500;
 const PAUSE_PUNCTUATION_DELAY_MS_AT_250_WPM = 250;
@@ -63,6 +64,12 @@ const TEXT_PANE_CLASSNAME =
   "min-h-44 w-full resize-y whitespace-pre-wrap rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-xs md:text-sm dark:bg-input/30";
 
 const SENTENCE_TONE_FADE_MS_AT_250_WPM = 300;
+
+function visibleSentenceCue(
+  mark: SentenceToneMark | null,
+): "?" | "!" | null {
+  return mark === "?" || mark === "!" ? mark : null;
+}
 
 export {
   FOCAL_COLORS,
@@ -211,11 +218,12 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     isPlaying && isGlyphLeading
       ? Math.min(activeWordIndex + 1, Math.max(0, words.length - 1))
       : activeWordIndex;
-  const sentenceToneMark = useMemo(
-    () =>
-      words.length === 0 ? null : getSentenceToneMarkAt(words, glyphWordIndex),
-    [words, glyphWordIndex],
-  );
+  const sentenceToneMark = useMemo(() => {
+    if (words.length === 0) return null;
+    return visibleSentenceCue(
+      getSentenceToneMarkAt(words, glyphWordIndex),
+    );
+  }, [words, glyphWordIndex]);
   const mountedRef = useRef(false);
 
   const setEffectiveWordIndex = useCallback(
@@ -324,15 +332,31 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
       setEffectiveWordIndex(next);
     }, delay);
 
+    const upcomingCue = visibleSentenceCue(
+      getSentenceToneMarkAt(
+        words,
+        Math.min(activeWordIndex + 1, words.length - 1),
+      ),
+    );
+    const currentCue = visibleSentenceCue(
+      getSentenceToneMarkAt(words, activeWordIndex),
+    );
+
     const glyphHideTimeout =
-      startsSentence && !punctuationGlyphAlwaysVisible
+      showPunctuationGlyph &&
+      startsSentence &&
+      currentCue !== null &&
+      !punctuationGlyphAlwaysVisible
         ? window.setTimeout(() => {
             setGlyphHoldExpired(true);
           }, visibleMs)
         : null;
 
     const glyphLeadTimeout =
-      wordEndsSentence(currentWord) && activeWordIndex < words.length - 1
+      showPunctuationGlyph &&
+      upcomingCue !== null &&
+      wordEndsSentence(currentWord) &&
+      activeWordIndex < words.length - 1
         ? window.setTimeout(() => {
             setIsGlyphLeading(true);
           }, Math.max(0, delay - leadMs))
@@ -358,6 +382,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     punctuationGlyphLeadMsAt250Wpm,
     punctuationGlyphDurationMsAt250Wpm,
     punctuationGlyphAlwaysVisible,
+    showPunctuationGlyph,
     setEffectiveWordIndex,
   ]);
 
@@ -495,7 +520,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   if (!isFull && words.length === 0) return null;
 
   const isPanelFillHeight =
-    props.variant === "panel" && (props as ReaderPanelProps).fillHeight;
+    props.variant === "panel" && Boolean((props as ReaderPanelProps).fillHeight);
 
   const effectiveFontSize = isFull
     ? fontSize
@@ -522,7 +547,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     Math.round(punctuationGlyphLeadMsAt250Wpm * wpmScale),
   );
   const isSentenceStart = wordStartsSentence(words, activeWordIndex);
-  const glyphVisible = punctuationGlyphAlwaysVisible
+  const cueVisible = punctuationGlyphAlwaysVisible
     ? true
     : isPlaying &&
       (isGlyphLeading || (isSentenceStart && !glyphHoldExpired));
@@ -552,7 +577,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
           {showPunctuationGlyph && (
             <PunctuationGlyph
               mark={sentenceToneMark}
-              fadingOut={!glyphVisible}
+              fadingOut={!cueVisible || sentenceToneMark == null}
               fadeInDurationMs={sentenceToneFadeInMs}
               fadeOutDurationMs={sentenceToneFadeOutMs}
               holdDurationMs={sentenceToneHoldMs}
