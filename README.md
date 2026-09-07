@@ -1,75 +1,64 @@
 # WordFlash
 
-A speed reading app that uses **rapid serial visual presentation (RSVP)** to help you read faster. Paste text or enter an article URL, and WordFlash extracts the content and displays it one word at a time with a focal character (the red letter) to guide your eyes.
+WordFlash shows you one word at a time (RSVP). Each word highlights a single focal character so your eyes stay in one place instead of scanning left to right.
+
+Paste text or give it a URL. For URLs it pulls the article body with [Mozilla Readability](https://github.com/mozilla/readability) and reads it back in the same word-by-word view.
 
 Built with [Next.js](https://nextjs.org), [React](https://react.dev), and [Tailwind CSS](https://tailwindcss.com).
 
-## Features
+## What you get
 
-- **Focus-based reading** — Each word highlights a focal character (configurable color) to reduce eye movement and increase reading speed
-- **Article extraction** — Enter any URL; [Mozilla Readability](https://github.com/mozilla/readability) strips ads and clutter, leaving clean article content
-- **Reader view** — Read articles with the speed reader panel and full article side-by-side; click any word to jump
-- **Bookmarklet** — Drag "Read in WordFlash" to your bookmarks bar to open any article from any page
-- **Customizable** — Font size, font family, words per minute, pause durations (sentence ends, commas), theme (light/dark/system)
-- **Accessibility** — Reduce motion and reduce transparency options
-- **Reading position** — Resumes where you left off when you return
+- Focal-character highlighting with configurable color, font, and WPM
+- Sentence and comma pauses, plus extra dwell on line breaks and the first occurrence of unfamiliar names
+- Article reader with the full text beside the RSVP panel; click a word to jump
+- A bookmarklet ("Read in WordFlash") for opening the current page in the reader
+- Light, dark, and system themes; reduce motion and reduce transparency toggles
+- Reading position saved in the browser when you come back
 
-## Project structure
+## Repo layout
 
 ```
 wordflash/
-├── apps/
-│   └── web/          # Next.js web app
-├── packages/
-│   └── core/         # Shared logic: word timing, text preprocessing, focal character index
-└── package.json      # Bun workspaces monorepo
+├── apps/web/       Next.js app
+├── functions/      Firebase Cloud Function for /api/extract
+├── packages/core/  Word timing, parsing, focal index
+└── package.json    Bun workspaces
 ```
 
 ## Development
 
-### Prerequisites
-
-- [Bun](https://bun.sh) (recommended) or Node.js 18+
-
-### Install dependencies
+You need [Bun](https://bun.sh) (or Node 18+).
 
 ```bash
 bun install
-```
-
-### Run the development server
-
-```bash
 bun run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The app hot-reloads as you edit files.
+Dev server: [http://localhost:3000](http://localhost:3000)
 
-### Scripts
-
-| Command | Description |
-|---------|-------------|
-| `bun run dev` | Start the web app dev server |
-| `bun run build` | Build `@wordflash/core` and the web app |
+| Command | What it does |
+|---------|--------------|
+| `bun run dev` | Web dev server |
+| `bun run build` | Build core + web |
 | `bun run lint` | Lint all packages |
-| `bun run test` | Run tests across all packages |
+| `bun run test` | Run all tests |
 
-For watch mode during development, run tests from a specific package:
+Watch tests in one package:
 
 ```bash
 cd packages/core && bun run test:watch
 cd apps/web && bun run test:watch
 ```
 
-### Build for production
+Production build:
 
 ```bash
 bun run build
 bun run --filter wordflash start
 ```
 
-## Deploy on Vercel
+## Deploy
 
-The easiest way to deploy is with the [Vercel Platform](https://vercel.com/new). See the [Next.js deployment docs](https://nextjs.org/docs/app/building-your-application/deploying) for details.
+**Vercel:** Create a project from this repo and set **Root Directory** to `apps/web`. See the [Next.js deploy docs](https://nextjs.org/docs/app/building-your-application/deploying) if you need the details.
 
-**Monorepo setup:** In your Vercel project settings, set **Root Directory** to `apps/web` so Vercel builds and deploys the Next.js app from the correct location.
+**Firebase:** `firebase.json` hosts the web app and routes `/api/extract` to the `extract` Cloud Function in `functions/`. Deploy with `firebase deploy` after `bun install` in `functions/`.
