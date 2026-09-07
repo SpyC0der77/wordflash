@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   calculateReadingTimeMs,
+  FIRST_PROPER_NOUN_DELAY_MS_AT_250_WPM,
+  getFirstProperNounFlags,
   getPunctuationGlyphTiming,
   getSentenceEndIndex,
   getSentenceToneMark,
@@ -314,6 +316,24 @@ describe("calculateReadingTimeMs", () => {
     );
     expect(withBreak - plain).toBe(sentenceDelay * LINE_BREAK_PAUSE_MULTIPLIER);
   });
+
+  it("adds extra dwell on the first proper noun", () => {
+    const wpm = 250;
+    const delay = FIRST_PROPER_NOUN_DELAY_MS_AT_250_WPM;
+    const withoutName = calculateReadingTimeMs(
+      ["the", "cat", "sat"],
+      wpm,
+      sentenceEndMs,
+      speechBreakMs,
+    );
+    const withName = calculateReadingTimeMs(
+      ["the", "Carter", "sat"],
+      wpm,
+      sentenceEndMs,
+      speechBreakMs,
+    );
+    expect(withName - withoutName).toBe(delay);
+  });
 });
 
 describe("wordStartsSentence", () => {
@@ -348,5 +368,172 @@ describe("getPunctuationGlyphTiming", () => {
       fadeOutMs: 0,
       fadeInMs: 0,
     });
+  });
+});
+
+describe("getFirstProperNounFlags", () => {
+  it("flags the first mid-sentence capitalized name", () => {
+    const words = ["I", "met", "Carter", "yesterday."];
+    expect(getFirstProperNounFlags(words)).toEqual([false, false, true, false]);
+  });
+
+  it("does not flag later mentions of the same name", () => {
+    const words = ["I", "met", "Carter", "yesterday.", "Then", "Carter", "left."];
+    expect(getFirstProperNounFlags(words)).toEqual([
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it("treats a sentence-start name as the first instance", () => {
+    const words = ["Elizabeth", "walked", "home."];
+    expect(getFirstProperNounFlags(words)).toEqual([true, false, false]);
+  });
+
+  it("does not treat sentence-start function words as names", () => {
+    expect(getFirstProperNounFlags(["The", "cat", "sat."])).toEqual([
+      false,
+      false,
+      false,
+    ]);
+    expect(getFirstProperNounFlags(["However,", "she", "left."])).toEqual([
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it("treats a sentence-start capital as a name when it appears mid-sentence later", () => {
+    const words = ["Carter", "walked", "home.", "Later", "Carter", "sat."];
+    expect(getFirstProperNounFlags(words)).toEqual([
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it("matches names across trailing punctuation and possessives", () => {
+    const words = ['"Carter,"', "said", "Ann.", "Carter's", "hat."];
+    expect(getFirstProperNounFlags(words)).toEqual([
+      true,
+      false,
+      true,
+      false,
+      false,
+    ]);
+  });
+
+  it("returns an empty array for no words", () => {
+    expect(getFirstProperNounFlags([])).toEqual([]);
+  });
+
+  it("does not flag ALL CAPS shouting", () => {
+    expect(getFirstProperNounFlags(["STOP", "yelling", "HELP."])).toEqual([
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it("does not flag a capitalized word that also appears lowercase", () => {
+    const words = ["An", "Apple", "fell.", "The", "apple", "rotted."];
+    expect(getFirstProperNounFlags(words)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it("does not flag honorifics, and treats the following name as mid-sentence", () => {
+    expect(getFirstProperNounFlags(["Mr.", "Smith", "left."])).toEqual([
+      false,
+      true,
+      false,
+    ]);
+  });
+
+  it("dwells on the first unusual word of a multi-word name, not common English parts", () => {
+    const words = ["I", "flew", "to", "New", "York", "City."];
+    expect(getFirstProperNounFlags(words)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+    ]);
+  });
+
+  it("does not dwell again on a later mention of a name from a span", () => {
+    const words = [
+      "I",
+      "met",
+      "John",
+      "Smith.",
+      "Then",
+      "John",
+      "left.",
+    ];
+    expect(getFirstProperNounFlags(words)).toEqual([
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it("treats particle names as one span", () => {
+    expect(
+      getFirstProperNounFlags(["Ludwig", "van", "Beethoven", "composed."]),
+    ).toEqual([true, false, false, false]);
+  });
+
+  it("does not flag common sentence-start content words", () => {
+    expect(getFirstProperNounFlags(["Help", "arrived."])).toEqual([
+      false,
+      false,
+    ]);
+  });
+
+  it("does not linger on names that are also common English words", () => {
+    expect(getFirstProperNounFlags(["Will", "arrived."])).toEqual([
+      false,
+      false,
+    ]);
+    expect(getFirstProperNounFlags(["I", "met", "Will", "yesterday."])).toEqual([
+      false,
+      false,
+      false,
+      false,
+    ]);
+    const gazetteer = new Set(["will"]);
+    expect(getFirstProperNounFlags(["Will", "arrived."], gazetteer)).toEqual([
+      false,
+      false,
+    ]);
+  });
+
+  it("does not guess unknown sentence-start words when a gazetteer is loaded", () => {
+    const gazetteer = new Set(["carter"]);
+    expect(
+      getFirstProperNounFlags(["Zyglorf", "walked", "home."], gazetteer),
+    ).toEqual([false, false, false]);
+    expect(
+      getFirstProperNounFlags(["I", "met", "Zyglorf", "later."], gazetteer),
+    ).toEqual([false, false, true, false]);
   });
 });

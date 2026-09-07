@@ -25,6 +25,8 @@ final class PlaybackEngine: ObservableObject {
     private var sentenceEndDurationMs = 500
     private var speechBreakDurationMs = 250
     private var tickTask: Task<Void, Never>?
+    private var firstProperNounFlags: [Bool] = []
+    private var gazetteerObserver: NSObjectProtocol?
 
     var isFinished: Bool {
         !words.isEmpty && !isPlaying && wordIndex >= (words.count - 1)
@@ -35,12 +37,28 @@ final class PlaybackEngine: ObservableObject {
         return words[wordIndex]
     }
 
+    init() {
+        gazetteerObserver = NotificationCenter.default.addObserver(
+            forName: .properNounGazetteerDidLoad,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshProperNounFlags()
+            }
+        }
+    }
+
     deinit {
+        if let gazetteerObserver {
+            NotificationCenter.default.removeObserver(gazetteerObserver)
+        }
         tickTask?.cancel()
     }
 
     func setWords(_ newWords: [String], initialIndex: Int = 0) {
         words = newWords
+        refreshProperNounFlags()
         wordIndex = clampedIndex(initialIndex)
         if newWords.isEmpty {
             pause()
@@ -99,7 +117,8 @@ final class PlaybackEngine: ObservableObject {
             sentenceEndDurationMsAt250Wpm: sentenceEndDurationMs,
             speechBreakDurationMsAt250Wpm: speechBreakDurationMs,
             fromIndex: wordIndex,
-            toIndex: endIndex
+            toIndex: endIndex,
+            gazetteer: ProperNounGazetteer.names
         )
     }
 
@@ -111,7 +130,15 @@ final class PlaybackEngine: ObservableObject {
             sentenceEndDurationMsAt250Wpm: sentenceEndDurationMs,
             speechBreakDurationMsAt250Wpm: speechBreakDurationMs,
             fromIndex: 0,
-            toIndex: words.count - 1
+            toIndex: words.count - 1,
+            gazetteer: ProperNounGazetteer.names
+        )
+    }
+
+    private func refreshProperNounFlags() {
+        firstProperNounFlags = SpeedReaderCore.firstProperNounFlags(
+            for: words,
+            gazetteer: ProperNounGazetteer.names
         )
     }
 
@@ -131,11 +158,14 @@ final class PlaybackEngine: ObservableObject {
         guard isPlaying, !words.isEmpty else { return }
 
         let currentWord = words[clampedIndex(wordIndex)]
+        let index = clampedIndex(wordIndex)
         let delayMs = SpeedReaderCore.nextWordDelayMs(
             for: currentWord,
             wordsPerMinute: wordsPerMinute,
             sentenceEndDurationMsAt250Wpm: sentenceEndDurationMs,
-            speechBreakDurationMsAt250Wpm: speechBreakDurationMs
+            speechBreakDurationMsAt250Wpm: speechBreakDurationMs,
+            isFirstProperNoun: firstProperNounFlags.indices.contains(index)
+                && firstProperNounFlags[index]
         )
 
         tickTask = Task { [weak self] in

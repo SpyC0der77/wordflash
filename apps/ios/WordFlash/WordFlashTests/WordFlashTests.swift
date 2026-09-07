@@ -49,4 +49,56 @@ struct WordFlashTests {
         #expect(ms == (240 * 3) + 250 + 500)
     }
 
+    @Test
+    func firstProperNounGetsExtraDwell() async throws {
+        let flags = SpeedReaderCore.firstProperNounFlags(
+            for: ["I", "met", "Carter", "yesterday.", "Then", "Carter", "left."]
+        )
+        #expect(flags == [false, false, true, false, false, false, false])
+
+        let withoutName = SpeedReaderCore.calculateReadingTimeMs(
+            words: ["the", "cat", "sat"],
+            wordsPerMinute: 250,
+            sentenceEndDurationMsAt250Wpm: 500,
+            speechBreakDurationMsAt250Wpm: 250
+        )
+        let withName = SpeedReaderCore.calculateReadingTimeMs(
+            words: ["the", "Carter", "sat"],
+            wordsPerMinute: 250,
+            sentenceEndDurationMsAt250Wpm: 500,
+            speechBreakDurationMsAt250Wpm: 250
+        )
+        #expect(withName - withoutName == SpeedReaderCore.firstProperNounDelayMsAt250Wpm)
+    }
+
+    @Test
+    func firstProperNounHeuristicIgnoresShoutingAndSpansNames() async throws {
+        #expect(
+            SpeedReaderCore.firstProperNounFlags(for: ["STOP", "yelling", "HELP."])
+                == [false, false, false]
+        )
+        #expect(
+            SpeedReaderCore.firstProperNounFlags(for: ["Mr.", "Smith", "left."])
+                == [false, true, false]
+        )
+        #expect(
+            SpeedReaderCore.firstProperNounFlags(for: ["I", "flew", "to", "New", "York", "City."])
+                == [false, false, false, false, true, false]
+        )
+        #expect(
+            SpeedReaderCore.firstProperNounFlags(for: ["Will", "arrived."])
+                == [false, false]
+        )
+        #expect(
+            SpeedReaderCore.firstProperNounFlags(
+                for: ["Will", "arrived."],
+                gazetteer: ["will"]
+            ) == [false, false]
+        )
+        #expect(
+            SpeedReaderCore.firstProperNounFlags(for: ["I", "met", "Will", "yesterday."])
+                == [false, false, false, false]
+        )
+    }
+
 }

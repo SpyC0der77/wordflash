@@ -35,12 +35,15 @@ import {
   type FontSizeKey,
 } from "@/lib/reader-appearance";
 import { useReaderSettings } from "@/lib/reader-settings-context";
+import { useProperNounGazetteer } from "@/lib/use-proper-noun-gazetteer";
 import { useReduceMotion } from "@/lib/reduce-motion-context";
 import { useReduceTransparency } from "@/lib/reduce-transparency-context";
 import { useTheme } from "@/lib/theme-context";
 import {
+  FIRST_PROPER_NOUN_DELAY_MS_AT_250_WPM,
   LINE_BREAK_PAUSE_MULTIPLIER,
   calculateReadingTimeMs,
+  getFirstProperNounFlags,
   getPunctuationGlyphTiming,
   getSentenceToneMarkAt,
   getWordParts,
@@ -184,6 +187,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     readerSettings.setCenterPunctuationTittleVertically;
   const resetDefaults = readerSettings.resetDefaults;
   const timeoutRef = useRef<number | null>(null);
+  const properNounGazetteer = useProperNounGazetteer();
   const [isGlyphLeading, setIsGlyphLeading] = useState(false);
   const [glyphHoldExpired, setGlyphHoldExpired] = useState(true);
   const rsvpLeftRef = useRef<HTMLSpanElement>(null);
@@ -203,6 +207,10 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     : (props as ReaderPanelProps | ReaderTestProps).text;
   const { words, hasLineBreakAfter, newlinesAfter, leadingNewlines, prefixBefore } =
     useMemo(() => parseWordsDetailed(text), [text]);
+  const firstProperNounFlags = useMemo(
+    () => getFirstProperNounFlags(words, properNounGazetteer),
+    [words, properNounGazetteer],
+  );
   const onWordIndexChange =
     "onWordIndexChange" in props ? props.onWordIndexChange : undefined;
   const effectiveWordIndex =
@@ -298,6 +306,9 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     const speechBreakMs = effectiveSpeechBreakMs;
     const sentenceDelay = Math.round(sentenceEndMs * wpmScale);
     const pauseDelay = Math.round(speechBreakMs * wpmScale);
+    const firstProperNounDelay = Math.round(
+      FIRST_PROPER_NOUN_DELAY_MS_AT_250_WPM * wpmScale,
+    );
 
     const currentWord = words[activeWordIndex] ?? "";
     const extraDelay = wordEndsSentence(currentWord)
@@ -308,7 +319,10 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     const lineBreakDelay = hasLineBreakAfter[activeWordIndex]
       ? sentenceDelay * LINE_BREAK_PAUSE_MULTIPLIER
       : 0;
-    const delay = baseMsPerWord + extraDelay + lineBreakDelay;
+    const properNounDelay = firstProperNounFlags[activeWordIndex]
+      ? firstProperNounDelay
+      : 0;
+    const delay = baseMsPerWord + extraDelay + lineBreakDelay + properNounDelay;
     const rawLeadMs = Math.max(
       0,
       Math.round(punctuationGlyphLeadMsAt250Wpm * wpmScale),
@@ -377,6 +391,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     activeWordIndex,
     words,
     hasLineBreakAfter,
+    firstProperNounFlags,
     effectiveSentenceEndMs,
     effectiveSpeechBreakMs,
     punctuationGlyphLeadMsAt250Wpm,
@@ -400,6 +415,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
         activeWordIndex,
         words.length - 1,
         hasLineBreakAfter,
+        properNounGazetteer,
       ),
     [
       words,
@@ -408,6 +424,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
       activeWordIndex,
       effectiveSentenceEndMs,
       effectiveSpeechBreakMs,
+      properNounGazetteer,
     ],
   );
 

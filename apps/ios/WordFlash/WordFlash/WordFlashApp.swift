@@ -16,6 +16,9 @@ struct WordFlashApp: App {
             ContentView()
                 .environmentObject(settings)
                 .preferredColorScheme(settings.preferredColorScheme)
+                .task {
+                    await ProperNounGazetteer.load()
+                }
         }
     }
 }
