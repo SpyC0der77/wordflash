@@ -1,0 +1,30 @@
+{
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "extract",
+      "predeploy": ["bun run --cwd functions build"]
+    }
+  ],
+  "hosting": {
+    "source": "apps/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "frameworksBackend": {
+      "region": "us-central1",
+      "omit": true
+    },
+    "rewrites": [
+      {
+        "source": "/api/extract",
+        "function": {
+          "functionId": "extract",
+          "region": "us-central1"
+        }
+      }
+    ]
+  }
+}

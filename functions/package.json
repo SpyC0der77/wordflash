@@ -1,0 +1,21 @@
+{
+  "name": "wordflash-functions",
+  "private": true,
+  "main": "lib/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs --out-dir lib --clean"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "firebase-admin": "^13.6.0",
+    "firebase-functions": "^6.6.0",
+    "linkedom": "^0.18.12"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "typescript": "^5"
+  }
+}
