@@ -3,6 +3,7 @@ import {
   calculateReadingTimeMs,
   FIRST_PROPER_NOUN_DELAY_MS_AT_250_WPM,
   getFirstProperNounFlags,
+  getWordTiming,
   getPunctuationGlyphTiming,
   getSentenceEndIndex,
   getSentenceToneMark,
@@ -36,10 +37,10 @@ describe("wordEndsSentence", () => {
     expect(wordEndsSentence("really?'")).toBe(true);
   });
 
-  it("returns true for words ending in closing parenthesis", () => {
-    expect(wordEndsSentence("(1)")).toBe(true);
-    expect(wordEndsSentence("end)")).toBe(true);
-    expect(wordEndsSentence("see)")).toBe(true);
+  it("does not treat closing parentheses as sentence endings", () => {
+    expect(wordEndsSentence("(1)")).toBe(false);
+    expect(wordEndsSentence("end)")).toBe(false);
+    expect(wordEndsSentence("see)")).toBe(false);
   });
 
   it("returns false for words ending in comma", () => {
@@ -298,7 +299,7 @@ describe("calculateReadingTimeMs", () => {
 
   it("adds twice the sentence-end delay for a manual line break", () => {
     const wpm = 300;
-    const sentenceDelay = Math.round(sentenceEndMs * (250 / wpm));
+    const lineBreakDelay = Math.round(sentenceEndMs * (250 / wpm) * LINE_BREAK_PAUSE_MULTIPLIER);
     const plain = calculateReadingTimeMs(
       ["hello", "world"],
       wpm,
@@ -314,7 +315,7 @@ describe("calculateReadingTimeMs", () => {
       undefined,
       [true, false]
     );
-    expect(withBreak - plain).toBe(sentenceDelay * LINE_BREAK_PAUSE_MULTIPLIER);
+    expect(withBreak - plain).toBe(lineBreakDelay);
   });
 
   it("adds extra dwell on the first proper noun", () => {
@@ -327,7 +328,7 @@ describe("calculateReadingTimeMs", () => {
       speechBreakMs,
     );
     const withName = calculateReadingTimeMs(
-      ["the", "Carter", "sat"],
+      ["the", "Morgan", "sat"],
       wpm,
       sentenceEndMs,
       speechBreakMs,
@@ -373,12 +374,12 @@ describe("getPunctuationGlyphTiming", () => {
 
 describe("getFirstProperNounFlags", () => {
   it("flags the first mid-sentence capitalized name", () => {
-    const words = ["I", "met", "Carter", "yesterday."];
+    const words = ["I", "met", "Morgan", "yesterday."];
     expect(getFirstProperNounFlags(words)).toEqual([false, false, true, false]);
   });
 
   it("does not flag later mentions of the same name", () => {
-    const words = ["I", "met", "Carter", "yesterday.", "Then", "Carter", "left."];
+    const words = ["I", "met", "Morgan", "yesterday.", "Then", "Morgan", "left."];
     expect(getFirstProperNounFlags(words)).toEqual([
       false,
       false,
@@ -409,7 +410,7 @@ describe("getFirstProperNounFlags", () => {
   });
 
   it("treats a sentence-start capital as a name when it appears mid-sentence later", () => {
-    const words = ["Carter", "walked", "home.", "Later", "Carter", "sat."];
+    const words = ["Morgan", "walked", "home.", "Later", "Morgan", "sat."];
     expect(getFirstProperNounFlags(words)).toEqual([
       true,
       false,
@@ -421,7 +422,7 @@ describe("getFirstProperNounFlags", () => {
   });
 
   it("matches names across trailing punctuation and possessives", () => {
-    const words = ['"Carter,"', "said", "Ann.", "Carter's", "hat."];
+    const words = ['"Morgan,"', "said", "Ann.", "Morgan's", "hat."];
     expect(getFirstProperNounFlags(words)).toEqual([
       true,
       false,
@@ -528,12 +529,124 @@ describe("getFirstProperNounFlags", () => {
   });
 
   it("does not guess unknown sentence-start words when a gazetteer is loaded", () => {
-    const gazetteer = new Set(["carter"]);
+    const gazetteer = new Set(["morgan"]);
     expect(
       getFirstProperNounFlags(["Zyglorf", "walked", "home."], gazetteer),
     ).toEqual([false, false, false]);
     expect(
       getFirstProperNounFlags(["I", "met", "Zyglorf", "later."], gazetteer),
     ).toEqual([false, false, true, false]);
+  });
+});
+
+
+describe("natural reading timing", () => {
+  const timing = (word: string, context = {}) => getWordTiming(word, 250, 500, 250, context);
+
+  it.each(["word,”", "word,’", "word,\"", "word,)]”,", "word,]"])("recognizes quoted or nested comma pauses: %s", (word) => {
+    expect(timing(word).pauseMs).toBe(250);
+  });
+
+  it.each(["word—", "word--", "word–", "word;", "word:"])("gives stronger clause boundaries more time: %s", (word) => {
+    expect(timing(word).pauseMs).toBe(313);
+  });
+
+  it.each(["end.”", "end!’", "end?)]”", "wait…", "wait..."])("recognizes sentence boundaries: %s", (word) => {
+    expect(timing(word).pauseMs).toBe(500);
+    expect(wordEndsSentence(word)).toBe(true);
+    expect(getSentenceToneMark(word)).not.toBeNull();
+  });
+
+  it.each(["Dr.", "Mr.", "J.", "e.g.", "U.S."])("does not pause as a sentence at an abbreviation before a name: %s", (word) => {
+    expect(timing(word, { nextWord: "Morgan" }).pauseMs).toBe(0);
+    expect(wordStartsSentence([word, "Morgan"], 1)).toBe(false);
+  });
+
+  it("can end a sentence after an abbreviation", () => {
+    expect(timing("U.S.", { nextWord: "The" }).pauseMs).toBe(500);
+    expect(timing("etc.").pauseMs).toBe(500);
+  });
+
+  it("keeps sentence cues past titles and parenthetical asides", () => {
+    const words = ["Did", "Dr.", "Morgan", "(really)", "leave?"];
+    expect(getSentenceEndIndex(words, 0)).toBe(4);
+    expect(getSentenceToneMarkAt(words, 0)).toBe("?");
+    expect(timing("(really)").pauseMs).toBe(125);
+  });
+
+  it.each(["3.14", "1,000", "12:30", "2026-09-11", "$42.50", "75%", "٣٫١٤", "v2"])("gives numeric tokens attention without treating internal punctuation as a break: %s", (word) => {
+    expect(timing(word).attentionMs).toBeGreaterThan(0);
+    expect(timing(word).pauseMs).toBe(0);
+  });
+
+  it("scales numeric attention with complexity and caps it", () => {
+    expect(timing("7").attentionMs).toBe(80);
+    expect(timing("2026").attentionMs).toBe(170);
+    expect(timing("12.34").attentionMs).toBe(230);
+    expect(timing("9".repeat(100)).attentionMs).toBe(360);
+    expect(timing("2026,").attentionMs).toBe(timing("2026").attentionMs);
+    expect(timing("2026.").attentionMs).toBe(timing("2026").attentionMs);
+  });
+
+  it("adds a bounded long-word dwell without penalizing short words", () => {
+    expect(timing("ordinary").attentionMs).toBe(0);
+    expect(timing("understanding").attentionMs).toBe(100);
+    expect(timing("a".repeat(100)).attentionMs).toBe(180);
+  });
+
+  it("uses the strongest attention adjustment instead of stacking them", () => {
+    expect(timing("Bartholomew", { isFirstProperNoun: true }).attentionMs).toBe(250);
+    expect(timing("123456789012", { isFirstProperNoun: true }).attentionMs).toBe(360);
+  });
+
+  it("uses the line-break pause instead of adding a second sentence pause", () => {
+    expect(timing("end.", { hasLineBreakAfter: true }).pauseMs).toBe(1000);
+    expect(timing("end,", { hasLineBreakAfter: true }).pauseMs).toBe(1000);
+  });
+
+  it("scales base, attention, and pauses with WPM", () => {
+    const slow = timing("2026,");
+    const fast = getWordTiming("2026,", 500, 500, 250);
+    expect(fast.totalMs).toBe(slow.totalMs / 2);
+  });
+
+  it.each([0, -1, NaN, Infinity, Number.MIN_VALUE, 100000])("keeps timing finite and positive at WPM %s", (wpm) => {
+    const result = getWordTiming("123.", wpm, NaN, -100);
+    expect(Number.isFinite(result.totalMs)).toBe(true);
+    expect(result.totalMs).toBeGreaterThanOrEqual(30);
+    expect(result.pauseMs).toBe(0);
+  });
+
+  it("supports disabled punctuation pauses", () => {
+    expect(getWordTiming("123.", 250, 0, 0, { hasLineBreakAfter: true }).pauseMs).toBe(0);
+    expect(getWordTiming("123.", 250, 0, 0).attentionMs).toBeGreaterThan(0);
+  });
+
+  it("keeps playback durations and full or partial estimates identical", () => {
+    const words = ["Dr.", "Morgan", "paid", "$1,234.50,", "then", "left—", "really?!”", "Next", "day."];
+    const breaks = words.map((_, i) => i === 6);
+    const flags = getFirstProperNounFlags(words);
+    for (const wpm of [150, 250, 600, 3000]) {
+      const durations = words.map((word, i) => getWordTiming(word, wpm, 500, 250, {
+        nextWord: words[i + 1],
+        hasLineBreakAfter: breaks[i],
+        isFirstProperNoun: flags[i],
+      }).totalMs);
+      expect(calculateReadingTimeMs(words, wpm, 500, 250, 0, undefined, breaks)).toBe(durations.reduce((a, b) => a + b, 0));
+      expect(calculateReadingTimeMs(words, wpm, 500, 250, 1, 5, breaks)).toBe(durations.slice(1, 6).reduce((a, b) => a + b, 0));
+    }
+  });
+
+  it("does not merge distinct names across punctuation", () => {
+    expect(getFirstProperNounFlags(["Morgan,", "Elizabeth", "arrived."])).toEqual([true, true, false]);
+    expect(getFirstProperNounFlags(["Morgan.", "Elizabeth", "arrived."])).toEqual([true, true, false]);
+  });
+
+  it("dwells on the new name component when the first component was already seen", () => {
+    expect(getFirstProperNounFlags(["John", "left.", "John", "Petrov", "arrived."])).toEqual([true, false, false, true, false]);
+  });
+
+  it("exempts common English names even when supplied by the gazetteer", () => {
+    expect(getFirstProperNounFlags(["Will", "May", "Hope"], new Set(["will", "may", "hope"]))).toEqual([false, false, false]);
   });
 });

@@ -40,16 +40,14 @@ import { useReduceMotion } from "@/lib/reduce-motion-context";
 import { useReduceTransparency } from "@/lib/reduce-transparency-context";
 import { useTheme } from "@/lib/theme-context";
 import {
-  FIRST_PROPER_NOUN_DELAY_MS_AT_250_WPM,
-  LINE_BREAK_PAUSE_MULTIPLIER,
   calculateReadingTimeMs,
   getFirstProperNounFlags,
+  getWordTiming,
   getPunctuationGlyphTiming,
   getSentenceToneMarkAt,
   getWordParts,
   parseWordsDetailed,
   wordEndsSentence,
-  wordHasPausePunctuation,
   wordStartsSentence,
   type SentenceToneMark,
 } from "@/lib/reader";
@@ -135,6 +133,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
       ? () => {}
       : readerSettings.setWordsPerMinute);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [completedText, setCompletedText] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [inputTab, setInputTab] = useState<"edit" | "scrub">("edit");
   const isDesktop = useMediaQuery("(min-width: 768px)");
@@ -236,6 +235,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
 
   const setEffectiveWordIndex = useCallback(
     (index: number) => {
+      setCompletedText(null);
       if (controlledWordIndex !== undefined) {
         onWordIndexChange?.(index);
       } else {
@@ -300,29 +300,20 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   useEffect(() => {
     if (!isPlaying || words.length === 0) return;
 
-    const baseMsPerWord = Math.max(30, Math.round(60000 / wordsPerMinute));
-    const wpmScale = 250 / wordsPerMinute;
-    const sentenceEndMs = effectiveSentenceEndMs;
-    const speechBreakMs = effectiveSpeechBreakMs;
-    const sentenceDelay = Math.round(sentenceEndMs * wpmScale);
-    const pauseDelay = Math.round(speechBreakMs * wpmScale);
-    const firstProperNounDelay = Math.round(
-      FIRST_PROPER_NOUN_DELAY_MS_AT_250_WPM * wpmScale,
-    );
-
+    const wpmScale =
+      250 / Math.max(1, Number.isFinite(wordsPerMinute) ? wordsPerMinute : 1);
     const currentWord = words[activeWordIndex] ?? "";
-    const extraDelay = wordEndsSentence(currentWord)
-      ? sentenceDelay
-      : wordHasPausePunctuation(currentWord)
-        ? pauseDelay
-        : 0;
-    const lineBreakDelay = hasLineBreakAfter[activeWordIndex]
-      ? sentenceDelay * LINE_BREAK_PAUSE_MULTIPLIER
-      : 0;
-    const properNounDelay = firstProperNounFlags[activeWordIndex]
-      ? firstProperNounDelay
-      : 0;
-    const delay = baseMsPerWord + extraDelay + lineBreakDelay + properNounDelay;
+    const delay = getWordTiming(
+      currentWord,
+      wordsPerMinute,
+      effectiveSentenceEndMs,
+      effectiveSpeechBreakMs,
+      {
+        nextWord: words[activeWordIndex + 1],
+        hasLineBreakAfter: hasLineBreakAfter[activeWordIndex],
+        isFirstProperNoun: firstProperNounFlags[activeWordIndex],
+      },
+    ).totalMs;
     const rawLeadMs = Math.max(
       0,
       Math.round(punctuationGlyphLeadMsAt250Wpm * wpmScale),
@@ -339,11 +330,12 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     setGlyphHoldExpired(!startsSentence);
 
     timeoutRef.current = window.setTimeout(() => {
-      const next = Math.min(activeWordIndex + 1, words.length - 1);
-      if (next >= words.length - 1) {
+      if (activeWordIndex >= words.length - 1) {
+        setCompletedText(text);
         setIsPlaying(false);
+        return;
       }
-      setEffectiveWordIndex(next);
+      setEffectiveWordIndex(activeWordIndex + 1);
     }, delay);
 
     const upcomingCue = visibleSentenceCue(
@@ -369,7 +361,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     const glyphLeadTimeout =
       showPunctuationGlyph &&
       upcomingCue !== null &&
-      wordEndsSentence(currentWord) &&
+      wordEndsSentence(currentWord, words[activeWordIndex + 1]) &&
       activeWordIndex < words.length - 1
         ? window.setTimeout(() => {
             setIsGlyphLeading(true);
@@ -386,6 +378,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     };
   }, [
     isPlaying,
+    text,
     words.length,
     wordsPerMinute,
     activeWordIndex,
@@ -402,7 +395,10 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   ]);
 
   const isFinished =
-    words.length > 0 && !isPlaying && activeWordIndex >= words.length - 1;
+    words.length > 0 &&
+    !isPlaying &&
+    completedText === text &&
+    activeWordIndex >= words.length - 1;
   const hasCalledCompleteRef = useRef(false);
 
   const remainingReadingTimeMs = useMemo(
@@ -435,6 +431,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
 
   const onComplete = "onComplete" in props ? props.onComplete : undefined;
   useEffect(() => {
+    if (!isFinished) hasCalledCompleteRef.current = false;
     if (isFinished && onComplete && !hasCalledCompleteRef.current) {
       hasCalledCompleteRef.current = true;
       onComplete();

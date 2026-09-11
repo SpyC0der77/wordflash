@@ -260,7 +260,7 @@ function startsNameSentence(
   if (index <= 0) return true;
   const prevKey = keys[index - 1];
   if (prevKey && HONORIFICS.has(prevKey)) return false;
-  return wordEndsSentence(words[index - 1] ?? "");
+  return wordEndsSentence(words[index - 1] ?? "", words[index]);
 }
 
 /**
@@ -322,6 +322,10 @@ export function getFirstProperNounFlags(
     const start = i;
     i += 1;
     while (i < words.length) {
+      if (
+        wordEndsSentence(words[i - 1] ?? "", words[i]) ||
+        wordHasPausePunctuation(words[i - 1] ?? "")
+      ) break;
       const key = keys[i] ?? "";
       const glued =
         likely[i] ||
@@ -334,20 +338,108 @@ export function getFirstProperNounFlags(
     for (let j = start; j < i; j++) {
       if (likely[j]) spanKeys.push(keys[j] ?? "");
     }
-    if (spanKeys.some((key) => !seen.has(key))) flags[start] = true;
+    for (let j = start; j < i; j++) {
+      if (likely[j] && !seen.has(keys[j])) {
+        flags[j] = true;
+        break;
+      }
+    }
     for (const key of spanKeys) seen.add(key);
   }
 
   return flags;
 }
 
-export function wordEndsSentence(word: string): boolean {
-  const trimmed = word.trim();
-  return trimmed.length > 0 && /[.!?)]["']?$/.test(trimmed);
+const ABBREVIATIONS = new Set([
+  ...HONORIFICS,
+  "e.g", "i.e", "vs", "etc", "approx", "dept", "est", "fig", "no", "vol",
+]);
+
+function withoutClosingMarks(word: string): string {
+  return word.trim().replace(/["'”’»›)\]}]+$/u, "");
+}
+
+export function wordEndsSentence(word: string, nextWord?: string): boolean {
+  const core = withoutClosingMarks(word);
+  if (!/[.!?…]$/u.test(core)) return false;
+  if (/[!?…]$/u.test(core) || /\.{2,}$/u.test(core)) return true;
+  if (nextWord !== undefined) {
+    const key = core.replace(/\.$/u, "").toLowerCase();
+    if (HONORIFICS.has(key) || /^[A-Z]\.$/u.test(core)) return false;
+    if (ABBREVIATIONS.has(key) || /^(?:\p{L}\.){2,}$/u.test(core)) {
+      return (
+        /^\p{Lu}/u.test(nameCore(nextWord)) &&
+        SENTENCE_START_FUNCTION_WORDS.has(properNounKey(nextWord))
+      );
+    }
+  }
+  return true;
 }
 
 export function wordHasPausePunctuation(word: string): boolean {
-  return /[,:;—]["']?$|--["']?$/.test(word.trim());
+  return /[,:;—–]$|--$/u.test(withoutClosingMarks(word));
+}
+
+export interface WordTimingContext {
+  nextWord?: string;
+  hasLineBreakAfter?: boolean;
+  isFirstProperNoun?: boolean;
+}
+
+export interface WordTiming {
+  baseMs: number;
+  attentionMs: number;
+  pauseMs: number;
+  totalMs: number;
+}
+
+export function getWordTiming(
+  word: string,
+  wordsPerMinute: number,
+  sentenceEndDurationMsAt250Wpm: number,
+  speechBreakDurationMsAt250Wpm: number,
+  context: WordTimingContext = {},
+): WordTiming {
+  const safeWpm =
+    Number.isFinite(wordsPerMinute) && wordsPerMinute > 0
+      ? Math.max(1, wordsPerMinute)
+      : 1;
+  const scale = 250 / safeWpm;
+  const safeDelay = (value: number) =>
+    Number.isFinite(value) ? Math.max(0, value) : 0;
+  const core = withoutClosingMarks(word);
+  const letters = word.match(/\p{L}/gu)?.length ?? 0;
+  const numberCore = core.replace(/[.,:;!?…—–-]+$/u, "");
+  const digits = word.match(/\p{Nd}/gu)?.length ?? 0;
+  const longWordDelay = Math.min(180, Math.max(0, letters - 8) * 20);
+  const numberFormatDelay = /[.,:/%\p{Sc}+−-]/u.test(numberCore) ? 60 : 0;
+  const numberDelay = digits > 0
+    ? Math.min(360, 80 + (digits - 1) * 30 + numberFormatDelay)
+    : 0;
+  const nameDelay = context.isFirstProperNoun
+    ? FIRST_PROPER_NOUN_DELAY_MS_AT_250_WPM
+    : 0;
+  const attentionMs = Math.round(
+    Math.max(longWordDelay, numberDelay, nameDelay) * scale,
+  );
+  const sentenceDelay = safeDelay(sentenceEndDurationMsAt250Wpm);
+  const speechDelay = safeDelay(speechBreakDurationMsAt250Wpm);
+  let boundaryDelay = 0;
+  if (wordEndsSentence(word, context.nextWord)) {
+    boundaryDelay = sentenceDelay;
+  } else if (wordHasPausePunctuation(word)) {
+    boundaryDelay = speechDelay * (/[;:—–]$|--$/u.test(core) ? 1.25 : 1);
+  } else if (/[)\]}]["'”’»›]*$/u.test(word.trim())) {
+    boundaryDelay = speechDelay * 0.5;
+  }
+  const pauseMs = Math.round(
+    Math.max(
+      boundaryDelay,
+      context.hasLineBreakAfter ? sentenceDelay * LINE_BREAK_PAUSE_MULTIPLIER : 0,
+    ) * scale,
+  );
+  const baseMs = Math.max(30, Math.round(60000 / safeWpm));
+  return { baseMs, attentionMs, pauseMs, totalMs: baseMs + attentionMs + pauseMs };
 }
 
 export type SentenceToneMark = "." | "?" | "!";
@@ -357,9 +449,9 @@ export type SentenceToneMark = "." | "?" | "!";
  * `?` wins over `!`, which wins over `.`, so "What?!" is a question.
  */
 export function getSentenceToneMark(word: string): SentenceToneMark | null {
-  const trimmed = word.trim();
+  const trimmed = withoutClosingMarks(word);
   if (!trimmed) return null;
-  const trailing = /[.!?…)"'\]]+$/.exec(trimmed)?.[0];
+  const trailing = /[.!?…]+$/.exec(trimmed)?.[0];
   if (!trailing) return null;
   if (trailing.includes("?")) return "?";
   if (trailing.includes("!")) return "!";
@@ -379,7 +471,7 @@ export function getSentenceEndIndex(
   const start = Math.max(0, Math.min(index, words.length - 1));
   for (let i = start; i < words.length; i++) {
     const word = words[i] ?? "";
-    if (getSentenceToneMark(word) || wordEndsSentence(word)) return i;
+    if (wordEndsSentence(word, words[i + 1])) return i;
   }
   return words.length - 1;
 }
@@ -393,7 +485,7 @@ export function wordStartsSentence(
 ): boolean {
   if (words.length === 0) return false;
   if (index <= 0) return true;
-  return wordEndsSentence(words[index - 1] ?? "");
+  return wordEndsSentence(words[index - 1] ?? "", words[index]);
 }
 
 /**
@@ -459,30 +551,20 @@ export function calculateReadingTimeMs(
   const end = Math.max(0, Math.min(rawEnd, maxIndex));
   const start = Math.max(0, Math.min(intFromIndex, end));
 
-  const safeWpm =
-    Number.isFinite(wordsPerMinute) && wordsPerMinute > 0 ? wordsPerMinute : 1;
-  const baseMsPerWord = Math.max(30, Math.round(60000 / safeWpm));
-  const wpmScale = 250 / safeWpm;
-  const sentenceDelay = Math.round(sentenceEndDurationMsAt250Wpm * wpmScale);
-  const pauseDelay = Math.round(speechBreakDurationMsAt250Wpm * wpmScale);
-  const firstProperNounDelay = Math.round(
-    FIRST_PROPER_NOUN_DELAY_MS_AT_250_WPM * wpmScale,
-  );
   const firstProperNounFlags = getFirstProperNounFlags(words, gazetteer);
-
   let total = 0;
   for (let i = start; i <= end; i++) {
-    const word = words[i] ?? "";
-    const extra = wordEndsSentence(word)
-      ? sentenceDelay
-      : wordHasPausePunctuation(word)
-        ? pauseDelay
-        : 0;
-    const lineBreakDelay = hasLineBreakAfter?.[i]
-      ? sentenceDelay * LINE_BREAK_PAUSE_MULTIPLIER
-      : 0;
-    const properNounDelay = firstProperNounFlags[i] ? firstProperNounDelay : 0;
-    total += baseMsPerWord + extra + lineBreakDelay + properNounDelay;
+    total += getWordTiming(
+      words[i] ?? "",
+      wordsPerMinute,
+      sentenceEndDurationMsAt250Wpm,
+      speechBreakDurationMsAt250Wpm,
+      {
+        nextWord: words[i + 1],
+        hasLineBreakAfter: hasLineBreakAfter?.[i],
+        isFirstProperNoun: firstProperNounFlags[i],
+      },
+    ).totalMs;
   }
   return total;
 }
