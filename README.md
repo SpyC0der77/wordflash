@@ -1,6 +1,6 @@
 # WordFlash
 
-WordFlash shows you one word at a time (RSVP). Each word highlights a single focal character so your eyes stay in one place instead of scanning left to right.
+WordFlash uses rapid serial visual presentation (RSVP), a technique used in clinical studies and speedreading apps that shows you one word at a time, in the same spot on screen. Each word highlights a single focal character so your eyes stay put instead of scanning left to right.
 
 Paste text or give it a URL. For URLs it pulls the article body with [Mozilla Readability](https://github.com/mozilla/readability) and reads it back in the same word-by-word view.
 

@@ -58,6 +58,9 @@ import { cn } from "@/lib/utils";
 const SAMPLE_TEXT =
   "Paste your own text below, focus on the highlighted letter, press play, and let the words flow. Does this feel fast? Try an exclamation too!";
 
+const INPUT_PANEL_CLASS_NAME =
+  "h-full min-h-44 w-full overflow-y-auto rounded-md border border-input bg-background px-3 py-3 text-base md:text-base leading-7 whitespace-pre-wrap break-words dark:bg-background shadow-none";
+
 const SENTENCE_END_DELAY_MS_AT_250_WPM = 500;
 const PAUSE_PUNCTUATION_DELAY_MS_AT_250_WPM = 250;
 const DEFAULT_SENTENCE_END_MS = 500;
@@ -1026,55 +1029,60 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
             </button>
           </div>
         </div>
-        {inputTab === "edit" ? (
-          <Textarea
-            id="reader-text"
-            value={inputText}
-            onChange={(e) => handleTextChange(e.target.value)}
-            placeholder="Paste text here..."
-            className="min-h-44 resize-y py-3 md:text-base leading-7"
-            aria-labelledby="reader-edit-tab"
-          />
-        ) : (
-          <div
-            ref={scrubContainerRef}
-            id="reader-scrub-panel"
-            role="tabpanel"
-            aria-labelledby="reader-scrub-tab"
-            className={cn(
-              "min-h-44 max-h-64 overflow-y-auto rounded-lg border border-input bg-background px-3 py-3 text-base leading-7",
-              "cursor-pointer [&_[data-word-index]]:cursor-pointer [&_[data-word-index]]:rounded-sm [&_[data-word-index]]:transition-colors [&_[data-word-index]]:hover:bg-muted/50",
-            )}
-          >
-            {words.length === 0 ? (
-              <span className="text-muted-foreground">Paste text here...</span>
-            ) : (
-              <>
-                {"\n".repeat(leadingNewlines)}
-                {words.flatMap((word, i) => [
-                  ...(i > 0 && (newlinesAfter[i - 1] ?? 0) === 0
-                    ? [" " as const]
-                    : []),
-                  prefixBefore[i] ?? "",
-                  <span
-                    key={i}
-                    data-word-index={i}
-                    className={cn(i === activeWordIndex && "reader-highlight")}
-                    onClick={() => {
-                      setEffectiveWordIndex(i);
-                      setIsPlaying(false);
-                    }}
-                  >
-                    {word}
-                  </span>,
-                  ...(newlinesAfter[i]
-                    ? ["\n".repeat(newlinesAfter[i] ?? 0)]
-                    : []),
-                ])}
-              </>
-            )}
-          </div>
-        )}
+        <div className="h-44 min-h-44 resize-y overflow-hidden">
+          {inputTab === "edit" ? (
+            <Textarea
+              id="reader-text"
+              value={inputText}
+              onChange={(e) => handleTextChange(e.target.value)}
+              placeholder="Paste text here..."
+              className={cn(
+                INPUT_PANEL_CLASS_NAME,
+                "field-sizing-fixed resize-none",
+              )}
+              aria-labelledby="reader-edit-tab"
+            />
+          ) : (
+            <div
+              ref={scrubContainerRef}
+              id="reader-scrub-panel"
+              role="tabpanel"
+              aria-labelledby="reader-scrub-tab"
+              className={cn(
+                INPUT_PANEL_CLASS_NAME,
+                "cursor-pointer [&_[data-word-index]]:cursor-pointer [&_[data-word-index]]:rounded-sm [&_[data-word-index]]:transition-colors [&_[data-word-index]]:hover:bg-muted/50",
+              )}
+            >
+              {words.length === 0 ? (
+                <span className="text-muted-foreground">Paste text here...</span>
+              ) : (
+                <>
+                  {"\n".repeat(leadingNewlines)}
+                  {words.flatMap((word, i) => [
+                    ...(i > 0 && (newlinesAfter[i - 1] ?? 0) === 0
+                      ? [" " as const]
+                      : []),
+                    prefixBefore[i] ?? "",
+                    <span
+                      key={i}
+                      data-word-index={i}
+                      className={cn(i === activeWordIndex && "reader-highlight")}
+                      onClick={() => {
+                        setEffectiveWordIndex(i);
+                        setIsPlaying(false);
+                      }}
+                    >
+                      {word}
+                    </span>,
+                    ...(newlinesAfter[i]
+                      ? ["\n".repeat(newlinesAfter[i] ?? 0)]
+                      : []),
+                  ])}
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </section>
     </main>
   );
