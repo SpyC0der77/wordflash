@@ -40,16 +40,14 @@ import { useReduceMotion } from "@/lib/reduce-motion-context";
 import { useReduceTransparency } from "@/lib/reduce-transparency-context";
 import { useTheme } from "@/lib/theme-context";
 import {
-  FIRST_PROPER_NOUN_DELAY_MS_AT_250_WPM,
-  LINE_BREAK_PAUSE_MULTIPLIER,
   calculateReadingTimeMs,
   getFirstProperNounFlags,
+  getWordTiming,
   getPunctuationGlyphTiming,
   getSentenceToneMarkAt,
   getWordParts,
   parseWordsDetailed,
   wordEndsSentence,
-  wordHasPausePunctuation,
   wordStartsSentence,
   type SentenceToneMark,
 } from "@/lib/reader";
@@ -57,6 +55,9 @@ import { cn } from "@/lib/utils";
 
 const SAMPLE_TEXT =
   "Paste your own text below, focus on the highlighted letter, press play, and let the words flow. Does this feel fast? Try an exclamation too!";
+
+const INPUT_PANEL_CLASS_NAME =
+  "h-full min-h-44 w-full overflow-y-auto rounded-md border border-input bg-background px-3 py-3 text-base md:text-base leading-7 whitespace-pre-wrap break-words dark:bg-background shadow-none";
 
 const SENTENCE_END_DELAY_MS_AT_250_WPM = 500;
 const PAUSE_PUNCTUATION_DELAY_MS_AT_250_WPM = 250;
@@ -135,6 +136,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
       ? () => {}
       : readerSettings.setWordsPerMinute);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [completedText, setCompletedText] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [inputTab, setInputTab] = useState<"edit" | "scrub">("edit");
   const isDesktop = useMediaQuery("(min-width: 768px)");
@@ -217,6 +219,17 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     controlledWordIndex !== undefined ? controlledWordIndex : wordIndex;
   const activeWordIndex =
     words.length === 0 ? 0 : Math.min(effectiveWordIndex, words.length - 1);
+  const [playbackPosition, setPlaybackPosition] = useState({
+    text,
+    index: effectiveWordIndex,
+  });
+  if (
+    playbackPosition.text !== text ||
+    playbackPosition.index !== effectiveWordIndex
+  ) {
+    setPlaybackPosition({ text, index: effectiveWordIndex });
+    setCompletedText(null);
+  }
   const activeWord = words[activeWordIndex] ?? "";
   const { left, focalCharacter, right } = useMemo(
     () => getWordParts(activeWord),
@@ -236,6 +249,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
 
   const setEffectiveWordIndex = useCallback(
     (index: number) => {
+      setCompletedText(null);
       if (controlledWordIndex !== undefined) {
         onWordIndexChange?.(index);
       } else {
@@ -300,29 +314,20 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   useEffect(() => {
     if (!isPlaying || words.length === 0) return;
 
-    const baseMsPerWord = Math.max(30, Math.round(60000 / wordsPerMinute));
-    const wpmScale = 250 / wordsPerMinute;
-    const sentenceEndMs = effectiveSentenceEndMs;
-    const speechBreakMs = effectiveSpeechBreakMs;
-    const sentenceDelay = Math.round(sentenceEndMs * wpmScale);
-    const pauseDelay = Math.round(speechBreakMs * wpmScale);
-    const firstProperNounDelay = Math.round(
-      FIRST_PROPER_NOUN_DELAY_MS_AT_250_WPM * wpmScale,
-    );
-
+    const wpmScale =
+      250 / Math.max(1, Number.isFinite(wordsPerMinute) ? wordsPerMinute : 1);
     const currentWord = words[activeWordIndex] ?? "";
-    const extraDelay = wordEndsSentence(currentWord)
-      ? sentenceDelay
-      : wordHasPausePunctuation(currentWord)
-        ? pauseDelay
-        : 0;
-    const lineBreakDelay = hasLineBreakAfter[activeWordIndex]
-      ? sentenceDelay * LINE_BREAK_PAUSE_MULTIPLIER
-      : 0;
-    const properNounDelay = firstProperNounFlags[activeWordIndex]
-      ? firstProperNounDelay
-      : 0;
-    const delay = baseMsPerWord + extraDelay + lineBreakDelay + properNounDelay;
+    const delay = getWordTiming(
+      currentWord,
+      wordsPerMinute,
+      effectiveSentenceEndMs,
+      effectiveSpeechBreakMs,
+      {
+        nextWord: words[activeWordIndex + 1],
+        hasLineBreakAfter: hasLineBreakAfter[activeWordIndex],
+        isFirstProperNoun: firstProperNounFlags[activeWordIndex],
+      },
+    ).totalMs;
     const rawLeadMs = Math.max(
       0,
       Math.round(punctuationGlyphLeadMsAt250Wpm * wpmScale),
@@ -339,11 +344,12 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     setGlyphHoldExpired(!startsSentence);
 
     timeoutRef.current = window.setTimeout(() => {
-      const next = Math.min(activeWordIndex + 1, words.length - 1);
-      if (next >= words.length - 1) {
+      if (activeWordIndex >= words.length - 1) {
+        setCompletedText(text);
         setIsPlaying(false);
+        return;
       }
-      setEffectiveWordIndex(next);
+      setEffectiveWordIndex(activeWordIndex + 1);
     }, delay);
 
     const upcomingCue = visibleSentenceCue(
@@ -369,7 +375,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     const glyphLeadTimeout =
       showPunctuationGlyph &&
       upcomingCue !== null &&
-      wordEndsSentence(currentWord) &&
+      wordEndsSentence(currentWord, words[activeWordIndex + 1]) &&
       activeWordIndex < words.length - 1
         ? window.setTimeout(() => {
             setIsGlyphLeading(true);
@@ -386,6 +392,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     };
   }, [
     isPlaying,
+    text,
     words.length,
     wordsPerMinute,
     activeWordIndex,
@@ -402,7 +409,10 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   ]);
 
   const isFinished =
-    words.length > 0 && !isPlaying && activeWordIndex >= words.length - 1;
+    words.length > 0 &&
+    !isPlaying &&
+    completedText === text &&
+    activeWordIndex >= words.length - 1;
   const hasCalledCompleteRef = useRef(false);
 
   const remainingReadingTimeMs = useMemo(
@@ -435,6 +445,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
 
   const onComplete = "onComplete" in props ? props.onComplete : undefined;
   useEffect(() => {
+    if (!isFinished) hasCalledCompleteRef.current = false;
     if (isFinished && onComplete && !hasCalledCompleteRef.current) {
       hasCalledCompleteRef.current = true;
       onComplete();
@@ -1026,55 +1037,60 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
             </button>
           </div>
         </div>
-        {inputTab === "edit" ? (
-          <Textarea
-            id="reader-text"
-            value={inputText}
-            onChange={(e) => handleTextChange(e.target.value)}
-            placeholder="Paste text here..."
-            className="min-h-44 resize-y py-3 md:text-base leading-7"
-            aria-labelledby="reader-edit-tab"
-          />
-        ) : (
-          <div
-            ref={scrubContainerRef}
-            id="reader-scrub-panel"
-            role="tabpanel"
-            aria-labelledby="reader-scrub-tab"
-            className={cn(
-              "min-h-44 max-h-64 overflow-y-auto rounded-lg border border-input bg-background px-3 py-3 text-base leading-7",
-              "cursor-pointer [&_[data-word-index]]:cursor-pointer [&_[data-word-index]]:rounded-sm [&_[data-word-index]]:transition-colors [&_[data-word-index]]:hover:bg-muted/50",
-            )}
-          >
-            {words.length === 0 ? (
-              <span className="text-muted-foreground">Paste text here...</span>
-            ) : (
-              <>
-                {"\n".repeat(leadingNewlines)}
-                {words.flatMap((word, i) => [
-                  ...(i > 0 && (newlinesAfter[i - 1] ?? 0) === 0
-                    ? [" " as const]
-                    : []),
-                  prefixBefore[i] ?? "",
-                  <span
-                    key={i}
-                    data-word-index={i}
-                    className={cn(i === activeWordIndex && "reader-highlight")}
-                    onClick={() => {
-                      setEffectiveWordIndex(i);
-                      setIsPlaying(false);
-                    }}
-                  >
-                    {word}
-                  </span>,
-                  ...(newlinesAfter[i]
-                    ? ["\n".repeat(newlinesAfter[i] ?? 0)]
-                    : []),
-                ])}
-              </>
-            )}
-          </div>
-        )}
+        <div className="h-44 min-h-44 resize-y overflow-hidden">
+          {inputTab === "edit" ? (
+            <Textarea
+              id="reader-text"
+              value={inputText}
+              onChange={(e) => handleTextChange(e.target.value)}
+              placeholder="Paste text here..."
+              className={cn(
+                INPUT_PANEL_CLASS_NAME,
+                "field-sizing-fixed resize-none focus-visible:ring-inset",
+              )}
+              aria-labelledby="reader-edit-tab"
+            />
+          ) : (
+            <div
+              ref={scrubContainerRef}
+              id="reader-scrub-panel"
+              role="tabpanel"
+              aria-labelledby="reader-scrub-tab"
+              className={cn(
+                INPUT_PANEL_CLASS_NAME,
+                "cursor-pointer [&_[data-word-index]]:cursor-pointer [&_[data-word-index]]:rounded-sm [&_[data-word-index]]:transition-colors [&_[data-word-index]]:hover:bg-muted/50",
+              )}
+            >
+              {words.length === 0 ? (
+                <span className="text-muted-foreground">Paste text here...</span>
+              ) : (
+                <>
+                  {"\n".repeat(leadingNewlines)}
+                  {words.flatMap((word, i) => [
+                    ...(i > 0 && (newlinesAfter[i - 1] ?? 0) === 0
+                      ? [" " as const]
+                      : []),
+                    prefixBefore[i] ?? "",
+                    <span
+                      key={i}
+                      data-word-index={i}
+                      className={cn(i === activeWordIndex && "reader-highlight")}
+                      onClick={() => {
+                        setEffectiveWordIndex(i);
+                        setIsPlaying(false);
+                      }}
+                    >
+                      {word}
+                    </span>,
+                    ...(newlinesAfter[i]
+                      ? ["\n".repeat(newlinesAfter[i] ?? 0)]
+                      : []),
+                  ])}
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </section>
     </main>
   );

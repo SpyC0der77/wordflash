@@ -8,6 +8,7 @@ export {
   LINE_BREAK_PAUSE_MULTIPLIER,
   calculateReadingTimeMs,
   getFirstProperNounFlags,
+  getWordTiming,
   getPunctuationGlyphTiming,
   getSentenceEndIndex,
   getSentenceToneMark,
@@ -16,7 +17,7 @@ export {
   wordHasPausePunctuation,
   wordStartsSentence,
 } from "./word-timing";
-export type { PunctuationGlyphTiming, SentenceToneMark } from "./word-timing";
+export type { WordTiming, WordTimingContext, PunctuationGlyphTiming, SentenceToneMark } from "./word-timing";
 export {
   attachTrailingCommasToLinks,
   extractTextFromHtml,

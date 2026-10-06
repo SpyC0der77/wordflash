@@ -1,6 +1,6 @@
 # WordFlash
 
-WordFlash shows you one word at a time (RSVP). Each word highlights a single focal character so your eyes stay in one place instead of scanning left to right.
+WordFlash uses rapid serial visual presentation (RSVP) to show one word at a time in the same spot on screen. Each word highlights a single focal character so your eyes stay put instead of scanning left to right.
 
 Paste text or give it a URL. For URLs it pulls the article body with [Mozilla Readability](https://github.com/mozilla/readability) and reads it back in the same word-by-word view.
 
@@ -9,7 +9,7 @@ Built with [Next.js](https://nextjs.org), [React](https://react.dev), and [Tailw
 ## What you get
 
 - Focal-character highlighting with configurable color, font, and WPM
-- Sentence and comma pauses, plus extra dwell on line breaks and the first occurrence of unfamiliar names
+- Natural punctuation and line-break pauses, plus extra time for unfamiliar names, numbers, and long words ([timing rules](docs/reading-timing.md))
 - Article reader with the full text beside the RSVP panel; click a word to jump
 - A bookmarklet ("Read in WordFlash") for opening the current page in the reader
 - Light, dark, and system themes; reduce motion and reduce transparency toggles

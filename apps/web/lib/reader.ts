@@ -5,6 +5,7 @@ export {
   calculateReadingTimeMs,
   extractTextFromHtml,
   getFirstProperNounFlags,
+  getWordTiming,
   getFocalCharacterIndex,
   getPunctuationGlyphTiming,
   getSentenceEndIndex,

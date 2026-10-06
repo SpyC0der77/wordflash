@@ -13,8 +13,8 @@ describe("parseProperNounGazetteer", () => {
   });
 
   it("reads a bare array", () => {
-    const gazetteer = parseProperNounGazetteer(["Carter"]);
-    expect(gazetteer.has("carter")).toBe(true);
+    const gazetteer = parseProperNounGazetteer(["Morgan"]);
+    expect(gazetteer.has("morgan")).toBe(true);
   });
 
   it("rejects invalid payloads", () => {
