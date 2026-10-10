@@ -6,8 +6,6 @@ WordFlash uses rapid serial visual presentation (RSVP) to show one word at a tim
 
 ![Playing a short text in the speed reader.](docs/images/demo.gif)
 
-Playing a short text in the speed reader.
-
 <details>
 <summary>Screenshot</summary>
 
