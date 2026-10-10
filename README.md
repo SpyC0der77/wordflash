@@ -2,7 +2,18 @@
 
 WordFlash uses rapid serial visual presentation (RSVP) to show one word at a time in the same spot on screen. Each word highlights a single focal character so your eyes stay put instead of scanning left to right.
 
+## Demo
+
+![Playing a short text in the speed reader.](docs/images/demo.gif)
+
+Playing a short text in the speed reader.
+
+<details>
+<summary>Screenshot</summary>
+
 ![WordFlash reader](docs/images/app.png)
+
+</details>
 
 Paste text or give it a URL. For URLs it pulls the article body with [Mozilla Readability](https://github.com/mozilla/readability) and reads it back in the same word-by-word view.
 
