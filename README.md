@@ -2,7 +2,11 @@
 
 WordFlash uses rapid serial visual presentation (RSVP) to show one word at a time in the same spot on screen. Each word highlights a single focal character so your eyes stay put instead of scanning left to right.
 
+![WordFlash reader](docs/images/app.png)
+
 Paste text or give it a URL. For URLs it pulls the article body with [Mozilla Readability](https://github.com/mozilla/readability) and reads it back in the same word-by-word view.
+
+[Live demo](https://wordflashreader.vercel.app)
 
 Built with [Next.js](https://nextjs.org), [React](https://react.dev), and [Tailwind CSS](https://tailwindcss.com).
 
@@ -27,7 +31,7 @@ wordflash/
 
 ## Development
 
-You need [Bun](https://bun.sh) (or Node 18+).
+Use [Bun](https://bun.sh) for the workspace commands and Node.js 22 for the web and Firebase runtimes. The repo uses Bun workspaces; Node alone does not run the commands below.
 
 ```bash
 bun install
@@ -61,4 +65,4 @@ bun run --filter wordflash start
 
 **Vercel:** Create a project from this repo and set **Root Directory** to `apps/web`. See the [Next.js deploy docs](https://nextjs.org/docs/app/building-your-application/deploying) if you need the details.
 
-**Firebase:** `firebase.json` hosts the web app and routes `/api/extract` to the `extract` Cloud Function in `functions/`. Deploy with `firebase deploy` after `bun install` in `functions/`.
+**Firebase:** `firebase.json` hosts the web app and routes `/api/extract` to the `extract` Cloud Function in `functions/`. Install the Functions dependencies with `bun install --cwd functions` and authenticate the Firebase CLI before running `firebase deploy`. The predeploy hook builds the Functions code. Review `.firebaserc` and choose your own Firebase project before deployment.
