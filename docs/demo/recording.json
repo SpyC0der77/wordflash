@@ -4,7 +4,7 @@
   "width": 960,
   "height": 600,
   "fps": 18,
-  "duration": 33.5,
+  "duration": 41,
   "events": [
     {
       "time": 0.67,
@@ -16,14 +16,42 @@
     },
     {
       "time": 20.11,
-      "text": "Scrub through the text"
+      "text": "Click words in Scrub mode"
     },
     {
-      "time": 25.67,
+      "time": 23.22,
+      "verified": "Position 4 is selected in the slider and highlighted in Scrub mode"
+    },
+    {
+      "time": 25.06,
+      "verified": "Position 15 is selected in the slider and highlighted in Scrub mode"
+    },
+    {
+      "time": 25.72,
+      "text": "Drag the reading-position slider forward and backward"
+    },
+    {
+      "time": 29.06,
+      "verified": "Dragging to 25% changes the reading position"
+    },
+    {
+      "time": 29.06,
+      "verified": "Position 6 is selected in the slider and highlighted in Scrub mode"
+    },
+    {
+      "time": 32.39,
+      "verified": "Dragging to 85% changes the reading position"
+    },
+    {
+      "time": 32.39,
+      "verified": "Position 17 is selected in the slider and highlighted in Scrub mode"
+    },
+    {
+      "time": 33.17,
       "text": "Reader settings"
     },
     {
-      "time": 31.39,
+      "time": 38.89,
       "verified": "Reader controls and text rendered"
     }
   ]
