@@ -31,5 +31,37 @@ const tour={async tour(f){
   await seek(.25);await seek(.85);await f.camera();
   f.mark('Reader settings');await f.click(button('Open settings'));await f.camera(720,410,1.25);await f.click(button('Appearance'));await f.click(p.locator('#font-size'));await f.click(p.getByRole('option',{name:'Large',exact:true}));await p.keyboard.press('Escape');await f.beat(.3);
   await f.assert(()=>p.locator('body').innerText().then(t=>t.includes('Text to read')),'Reader controls and text rendered');
+  await f.camera();
+  f.mark('Load a real article URL');
+  await f.click(p.getByRole('link',{name:'Article Reader',exact:true}));
+  await f.type(p.getByPlaceholder('Enter article URL...'),'https://science.nasa.gov/moon/facts/');
+  const extraction=p.waitForResponse(r=>r.url().endsWith('/api/extract')&&r.request().method()==='POST');
+  await f.click(button('Read'));
+  const response=await extraction,data=await response.json();
+  await f.assert(()=>Promise.resolve(response.ok()&&data.title?.includes('Moon Facts')&&data.content?.length>1000),'The live extractor returned NASA Moon Facts article content');
+  const article=p.locator('.reader-article');
+  await article.waitFor({state:'visible'});await f.beat(.6);
+  await f.assert(()=>p.getByRole('heading',{name:'Moon Facts - NASA Science',exact:true}).isVisible(),'The extracted article title is visible');
+  f.mark('Read with the full article and synchronized highlighting');
+  await f.camera(720,490,1.1);
+  const articleSlider=p.getByRole('slider');
+  const beforePlay=Number(await articleSlider.getAttribute('aria-valuenow'));
+  await f.click(button('Play'));await f.beat(2.8);await f.click(button('Pause'));
+  const afterPlay=Number(await articleSlider.getAttribute('aria-valuenow'));
+  async function verifyArticlePosition(index){
+   await f.assert(async()=>Number(await articleSlider.getAttribute('aria-valuenow'))===index&&
+    await article.locator(`[data-word-index="${index}"]`).evaluate(el=>el.classList.contains('reader-highlight')),
+    `Article word ${index+1} matches the player position and highlight`);
+  }
+  await f.assert(()=>Promise.resolve(afterPlay>beforePlay),'Article playback advances the reading position');
+  await verifyArticlePosition(afterPlay);
+  f.mark('Click an article word to jump the player');
+  await f.click(article.locator('[data-word-index="30"]'));await verifyArticlePosition(30);await f.beat(.65);
+  await f.camera();await f.scroll(180,1.2);
+  const laterWord=article.locator('[data-word-index]').filter({hasText:/^colonization$/}).first();
+  const laterIndex=Number(await laterWord.getAttribute('data-word-index'));
+  await f.click(laterWord);await verifyArticlePosition(laterIndex);await f.beat(.6);
+  await f.click(button('Play'));await f.beat(2);await f.click(button('Pause'));
+  await f.assert(async()=>Number(await articleSlider.getAttribute('aria-valuenow'))>laterIndex,'Article playback resumes from the clicked word');
  }}.tour;
 await record({name:"wordflash",url:"https://wordflashreader.vercel.app",tour,output:fileURLToPath(new URL('../images/',import.meta.url))});

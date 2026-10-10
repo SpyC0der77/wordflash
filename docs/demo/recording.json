@@ -4,7 +4,7 @@
   "width": 960,
   "height": 600,
   "fps": 18,
-  "duration": 41,
+  "duration": 64.83333333333333,
   "events": [
     {
       "time": 0.67,
@@ -53,6 +53,46 @@
     {
       "time": 38.89,
       "verified": "Reader controls and text rendered"
+    },
+    {
+      "time": 39.67,
+      "text": "Load a real article URL"
+    },
+    {
+      "time": 46.28,
+      "verified": "The live extractor returned NASA Moon Facts article content"
+    },
+    {
+      "time": 46.89,
+      "verified": "The extracted article title is visible"
+    },
+    {
+      "time": 46.89,
+      "text": "Read with the full article and synchronized highlighting"
+    },
+    {
+      "time": 52.78,
+      "verified": "Article playback advances the reading position"
+    },
+    {
+      "time": 52.78,
+      "verified": "Article word 12 matches the player position and highlight"
+    },
+    {
+      "time": 52.78,
+      "text": "Click an article word to jump the player"
+    },
+    {
+      "time": 53.94,
+      "verified": "Article word 31 matches the player position and highlight"
+    },
+    {
+      "time": 57.78,
+      "verified": "Article word 82 matches the player position and highlight"
+    },
+    {
+      "time": 62.72,
+      "verified": "Article playback resumes from the clicked word"
     }
   ]
 }
