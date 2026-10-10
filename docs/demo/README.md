@@ -2,6 +2,8 @@
 
 This script captures the deployed app at [https://wordflashreader.vercel.app](https://wordflashreader.vercel.app). It uses real browser interactions, eased cursor movement, short pauses, and camera zooms.
 
+The Scrub sequence clicks individual words, then drags the position slider backward and forward. The recording checks that the slider position changes and matches the highlighted word.
+
 Use Node.js 20.9 or newer and FFmpeg on your PATH. From the repository root, run:
 
 ```bash
