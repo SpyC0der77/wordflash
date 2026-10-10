@@ -1,0 +1,30 @@
+{
+  "name": "wordflash",
+  "url": "https://wordflashreader.vercel.app",
+  "width": 960,
+  "height": 600,
+  "fps": 18,
+  "duration": 33.5,
+  "events": [
+    {
+      "time": 0.67,
+      "text": "Text input and reading speed"
+    },
+    {
+      "time": 13.83,
+      "text": "Playback and focal letter"
+    },
+    {
+      "time": 20.11,
+      "text": "Scrub through the text"
+    },
+    {
+      "time": 25.67,
+      "text": "Reader settings"
+    },
+    {
+      "time": 31.39,
+      "verified": "Reader controls and text rendered"
+    }
+  ]
+}
