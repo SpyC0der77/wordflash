@@ -4,7 +4,7 @@ WordFlash uses rapid serial visual presentation (RSVP) to show one word at a tim
 
 ## Demo
 
-![Playing text, clicking words in Scrub mode, dragging the position slider, and changing reader settings.](docs/images/demo.gif)
+![Playing text, clicking words in Scrub mode, dragging the position slider, and reading a NASA article with synchronized highlighting.](docs/images/demo.gif)
 
 [Watch the MP4](docs/images/demo.mp4) · [Recording script](docs/demo/README.md)
 
