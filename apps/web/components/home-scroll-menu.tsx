@@ -40,8 +40,10 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
       const distance = Math.min(mobile ? 64 : 120, scrollRange);
       const fadeDistance = Math.min(mobile ? 12 : 24, distance / 4);
       const amount = Math.min(1, Math.max(0, (scroll - fadeDistance) / (distance - fadeDistance)));
+      // Ease out while closing; reversing the same curve eases in while opening.
+      const easedAmount = 1 - (1 - amount) ** 2;
       const reduced = reduceMotion || systemReduceMotion;
-      const progress = manualProgress.current ?? (hovered.current ? 0 : reduced ? Number(scroll > 0) : amount);
+      const progress = manualProgress.current ?? (hovered.current ? 0 : reduced ? Number(scroll > 0) : easedAmount);
       const travel = (expandedWidth + 8) * progress;
       const duration = mobile ? 100 : 150;
       // Keep the button still; translate the controls behind its solid face.
