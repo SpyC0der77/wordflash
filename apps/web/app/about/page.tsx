@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 export const metadata: Metadata = {
   title: "About | WordFlash",
   description:
-    "Learn how WordFlash uses RSVP (Rapid Serial Visual Presentation) to speed up your reading.",
+    "WordFlash shows text one word at a time, with a highlighted letter to keep your place and a reading pace you control.",
 };
 
 export default function AboutPage() {
@@ -20,68 +20,48 @@ export default function AboutPage() {
 
       <article className="space-y-6">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          How WordFlash speeds up reading
+          About WordFlash
         </h1>
 
         <p className="text-lg leading-7 text-muted-foreground">
-          WordFlash uses a technique called <strong>RSVP</strong>—Rapid Serial
-          Visual Presentation—to help you read faster by eliminating eye
-          movement and focusing your attention on one word at a time.
+          WordFlash shows text one word at a time in the same spot on screen.
+          Paste something you want to read or open an article by URL, then set
+          the pace in words per minute. A highlighted letter in each word gives
+          you a place to rest your gaze.
         </p>
 
         <section className="space-y-3">
-          <h2 className="mt-10 text-xl font-semibold">What is RSVP?</h2>
+          <h2 className="mt-10 text-xl font-semibold">Reading one word at a time</h2>
           <p className="leading-7 text-muted-foreground">
-            <strong>Rapid Serial Visual Presentation</strong> (RSVP) is a
-            reading method that displays words one at a time in a fixed position
-            on the screen. Instead of scanning left-to-right across lines and
-            jumping your eyes from line to line, you keep your gaze steady while
-            words stream to you. This removes the physical limits of traditional
-            reading—saccades (eye jumps) and fixations (pauses on each
-            word)—which typically cap reading speed around 200–250 words per
-            minute.
+            This method is called rapid serial visual presentation, or RSVP.
+            The words change while their position stays fixed, so you can read
+            without scanning across lines. WordFlash adds pauses at punctuation
+            and gives longer words, numbers, and unfamiliar names extra time.
           </p>
         </section>
 
         <section className="space-y-3">
           <h2 className="mt-10 text-xl font-semibold">
-            Why RSVP speeds up reading
+            Choosing a pace
           </h2>
           <p className="leading-7 text-muted-foreground">
-            When you read normally, your eyes spend time moving between words
-            and lines. Each movement and refocus costs time. RSVP eliminates
-            that by:
+            Start at a speed that lets you follow the meaning. Increase it when
+            reading feels comfortable, and slow down for dense or unfamiliar
+            material. A higher words-per-minute setting only helps if you can
+            still understand what you read. Pause or go back whenever you need
+            to reread a passage.
           </p>
-          <ul className="my-4 list-disc space-y-2 pl-6">
-            <li>
-              <strong>Removing saccades</strong> — Your eyes stay fixed; words
-              come to you instead of you chasing them.
-            </li>
-            <li>
-              <strong>Reducing subvocalization</strong> — The steady pace
-              encourages you to process words visually rather than “sounding
-              them out” in your head.
-            </li>
-            <li>
-              <strong>Maintaining focus</strong> — One word at a time reduces
-              distractions and keeps your attention centered.
-            </li>
-          </ul>
         </section>
 
         <section className="space-y-3">
           <h2 className="mt-10 text-xl font-semibold">
-            Focal character highlighting
+            The highlighted letter
           </h2>
           <p className="leading-7 text-muted-foreground">
-            WordFlash adds a refinement: the <strong>focal character</strong>.
-            It is chosen from each word&apos;s grapheme clusters (accents and
-            emoji count as single units), and the index depends on length:
-            shorter words anchor nearer the start, longer words shift right,
-            approximating an <strong>optimal viewing position (OVP)</strong>{" "}
-            rather than always the geometric center. The highlight is
-            implemented so your gaze can stay fixed while recognition stays
-            fast.
+            WordFlash aligns each word around its highlighted letter. Short
+            words use a letter near the start, while longer words use one
+            further in. That letter stays in the same place as the words change,
+            giving your eyes a consistent point to follow.
           </p>
         </section>
 
@@ -95,17 +75,13 @@ export default function AboutPage() {
             >
               Article Reader
             </Link>
-            . Press play, focus on the highlighted letter, and adjust the
-            words-per-minute (WPM) until you find a comfortable pace. Most
-            people can reach 300–400 WPM with practice; some go much higher.
+            . Press play to begin. In the Article Reader, the full text appears
+            beside the word display, and you can click a word to jump to it.
           </p>
         </section>
 
         <section className="space-y-3">
           <h2 className="mt-10 text-xl font-semibold">Further reading</h2>
-          <p className="leading-7 text-muted-foreground">
-            For more information, see:
-          </p>
           <ul className="space-y-3 text-muted-foreground">
             <li>
               <Link
