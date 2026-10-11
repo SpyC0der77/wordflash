@@ -18,6 +18,7 @@ beforeEach(() => {
   const { window } = parseHTML("<html><body><div id='root'></div></body></html>");
   Object.assign(window, {
     innerHeight: 1080,
+    innerWidth: 1920,
     scrollY: 0,
     requestAnimationFrame: (callback: FrameRequestCallback) => setTimeout(() => callback(0), 0),
     cancelAnimationFrame: (id: number) => clearTimeout(id),
@@ -60,6 +61,32 @@ function hover(enter: boolean, pointerType = "mouse") {
 }
 
 describe("home navigation scroll and hover", () => {
+  it("does not measure control width on each scroll frame", async () => {
+    const width = vi.spyOn(window.HTMLElement.prototype, "offsetWidth", "get");
+    await render();
+    expect(width).toHaveBeenCalledTimes(1);
+    width.mockClear();
+    scroll(12);
+    scroll(32);
+    scroll(64);
+    scroll(120);
+    expect(width).not.toHaveBeenCalled();
+    width.mockRestore();
+  });
+
+  it("finishes the mobile collapse sooner and uses a shorter tap transition", async () => {
+    Object.assign(window, { innerWidth: 390 });
+    await render();
+    scroll(6);
+    expect(button().style.opacity).toBe("0.5");
+    expect(navigation().style.transform).toBe("translate3d(0px, 0, 0)");
+    scroll(64);
+    expect(navigation().style.transform).toBe("translate3d(193px, 0, 0)");
+    act(() => button().click());
+    expect(navigation().style.transition).toBe("transform 100ms ease-out");
+    expect(button().getAttribute("aria-expanded")).toBe("true");
+  });
+
   it("fades the hamburger in before moving controls, and hides it at the top", async () => {
     await render();
     expect(button().style.opacity).toBe("0");

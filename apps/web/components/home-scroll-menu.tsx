@@ -20,24 +20,26 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
 
   useEffect(() => {
     let pendingFrame: number | undefined;
+    let scrollRange = 1;
+    let expandedWidth = 220;
+    let mobile = false;
     const draw = (animate = false) => {
       const frame = frameRef.current;
       const content = contentRef.current;
       const icon = iconRef.current;
       if (!frame || !content || !icon) return;
-      const scrollRange = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
       const scroll = Math.max(0, window.scrollY || 0);
-      const distance = Math.min(120, scrollRange);
-      const fadeDistance = Math.min(24, distance / 4);
+      const distance = Math.min(mobile ? 64 : 120, scrollRange);
+      const fadeDistance = Math.min(mobile ? 12 : 24, distance / 4);
       const amount = Math.min(1, Math.max(0, (scroll - fadeDistance) / (distance - fadeDistance)));
       const reduced = reduceMotion || systemReduceMotion;
       const progress = manualProgress.current ?? (hovered.current ? 0 : reduced ? Number(scroll > 0) : amount);
-      const expandedWidth = content.offsetWidth || 220;
       const travel = (expandedWidth + 8) * progress;
+      const duration = mobile ? 100 : 150;
       // Keep the button still; translate the controls behind its solid face.
       frame.style.transitionProperty = animate && !reduced ? "opacity, clip-path" : "opacity";
-      content.style.transition = animate && !reduced ? "transform 150ms ease-out" : "none";
-      frame.style.width = `${expandedWidth + 52}px`;
+      frame.style.transitionDuration = `${duration}ms`;
+      content.style.transition = animate && !reduced ? `transform ${duration}ms ease-out` : "none";
       frame.style.clipPath = `inset(0 0 0 ${travel}px)`;
       content.style.transform = `translate3d(${travel}px, 0, 0)`;
       icon.style.opacity = String(reduced ? Number(scroll > 0) : Math.min(1, scroll / fadeDistance));
@@ -45,6 +47,13 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
       if (scroll === 0 && document.activeElement === icon) icon.blur();
       setCollapsed(progress > 0);
       setIconVisible(scroll > 0);
+    };
+    const measure = () => {
+      scrollRange = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+      expandedWidth = contentRef.current?.offsetWidth || 220;
+      mobile = window.innerWidth < 768 || Boolean(window.matchMedia?.("(pointer: coarse)").matches);
+      if (frameRef.current) frameRef.current.style.width = `${expandedWidth + 52}px`;
+      draw();
     };
     redraw.current = draw;
     const schedule = () => {
@@ -55,15 +64,15 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
         draw();
       });
     };
-    draw();
+    measure();
     window.addEventListener("scroll", schedule, { passive: true });
-    const resize = () => draw();
-    window.addEventListener("resize", resize);
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(resize);
+    window.addEventListener("resize", measure);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     if (contentRef.current) observer?.observe(contentRef.current);
+    if (frameRef.current?.parentElement) observer?.observe(frameRef.current.parentElement);
     return () => {
       window.removeEventListener("scroll", schedule);
-      window.removeEventListener("resize", resize);
+      window.removeEventListener("resize", measure);
       observer?.disconnect();
       if (pendingFrame !== undefined) window.cancelAnimationFrame(pendingFrame);
       redraw.current = () => {};
