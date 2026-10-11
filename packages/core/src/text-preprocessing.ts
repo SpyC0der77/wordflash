@@ -141,18 +141,15 @@ function articleTextStream(html: string) {
     // Inspect without modifying text: ranges retain their original offsets.
     if (text && !/\n *$/.test(text)) text += "\n";
   }
-  function visit(node: Node, inheritedVisibilityHidden = false) {
+  function pruneHiddenContent(node: Node, inheritedVisibilityHidden = false): boolean {
     if (node.nodeType === 3) {
       if (inheritedVisibilityHidden) {
         node.parentNode?.removeChild(node);
-        return;
+        return false;
       }
-      const value = (node.textContent ?? "").replace(/\s+/g, " ");
-      ranges.push({ node: node as Text, start: text.length, text: value });
-      text += value;
-      return;
+      return /\S/.test(node.textContent ?? "");
     }
-    if (node.nodeType !== 1) return;
+    if (node.nodeType !== 1) return false;
     const element = node as Element;
     const style = (element as HTMLElement).style;
     const display = (style?.getPropertyValue("display") ?? "").replace(/\s*!important\s*$/i, "").trim().toLowerCase();
@@ -160,21 +157,33 @@ function articleTextStream(html: string) {
     if (EXCLUDED_ELEMENTS.has(element.tagName) || element.hasAttribute("hidden") ||
         element.getAttribute("aria-hidden") === "true" || display === "none") {
       element.remove();
-      return;
+      return false;
     }
-    // Visibility is inherited, but a descendant can explicitly become visible.
-    // Remove hidden text rather than its container so those overrides survive.
+    // Inherited visibility can be overridden by a visible descendant.
     const visibilityHidden = visibility === "visible" ? false
       : visibility === "hidden" ? true : inheritedVisibilityHidden;
-    if (visibilityHidden && MEDIA_ELEMENTS.has(element.tagName)) {
+    const isMediaOrBreak = MEDIA_ELEMENTS.has(element.tagName) || element.tagName === "BR";
+    if (visibilityHidden && isMediaOrBreak) {
       element.remove();
+      return false;
+    }
+    let hasVisibleContent = isMediaOrBreak;
+    for (const child of Array.from(node.childNodes)) {
+      if (pruneHiddenContent(child, visibilityHidden)) hasVisibleContent = true;
+    }
+    if (visibilityHidden && !hasVisibleContent) element.remove();
+    return hasVisibleContent;
+  }
+  function visit(node: Node) {
+    if (node.nodeType === 3) {
+      const value = (node.textContent ?? "").replace(/\s+/g, " ");
+      ranges.push({ node: node as Text, start: text.length, text: value });
+      text += value;
       return;
     }
+    if (node.nodeType !== 1) return;
+    const element = node as Element;
     if (element.tagName === "BR") {
-      if (visibilityHidden) {
-        element.remove();
-        return;
-      }
       text += "\n";
       return;
     }
@@ -182,9 +191,11 @@ function articleTextStream(html: string) {
     if (block) boundary();
     // Adjacent table cells still represent separate words.
     if ((element.tagName === "TD" || element.tagName === "TH") && text && !/\s$/.test(text)) text += " ";
-    for (const child of Array.from(node.childNodes)) visit(child, visibilityHidden);
+    for (const child of Array.from(node.childNodes)) visit(child);
     if (block) boundary();
   }
+  // Prune before collecting offsets so hidden-only blocks add no boundaries.
+  pruneHiddenContent(doc.body);
   visit(doc.body);
   return { doc, text, ranges };
 }

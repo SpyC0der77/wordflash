@@ -25,6 +25,7 @@ import {
   Loader2,
   Menu,
   Settings,
+  X,
 } from "lucide-react";
 import { Dialog } from "radix-ui";
 import { Reader } from "@/components/reader";
@@ -80,6 +81,13 @@ const ArticleBody = forwardRef<HTMLDivElement, ArticleBodyProps>(
     { html, wordIndex, onWordClick, onMediaClick, scrollToWord },
     ref,
   ) {
+    const sanitizedHtml = useMemo(
+      () => DOMPurify.sanitize(html, {
+        ALLOWED_ATTR: ["href", "src", "alt", "title", "data-word-index"],
+        ADD_ATTR: ["data-word-index"],
+      }),
+      [html],
+    );
     const prevHighlightRef = useRef<HTMLElement[]>([]);
 
     function handleClick(e: React.MouseEvent<HTMLDivElement>) {
@@ -151,7 +159,7 @@ const ArticleBody = forwardRef<HTMLDivElement, ArticleBodyProps>(
           }
         }
       }
-    }, [html, wordIndex, ref, scrollToWord]);
+    }, [sanitizedHtml, wordIndex, ref, scrollToWord]);
 
     return (
       <div
@@ -163,10 +171,7 @@ const ArticleBody = forwardRef<HTMLDivElement, ArticleBodyProps>(
             "cursor-pointer [&_[data-word-index]]:cursor-pointer [&_[data-word-index]]:rounded-sm [&_[data-word-index]]:transition-colors [&_[data-word-index]]:hover:bg-muted/50",
         )}
         dangerouslySetInnerHTML={{
-          __html: DOMPurify.sanitize(html, {
-            ALLOWED_ATTR: ["href", "src", "alt", "title", "data-word-index"],
-            ADD_ATTR: ["data-word-index"],
-          }),
+          __html: sanitizedHtml,
         }}
       />
     );
@@ -307,6 +312,12 @@ export default function ReaderPage() {
     resetDefaults,
   } = readerSettings;
 
+  const handleResetDefaults = useCallback(async () => {
+    resetDefaults();
+    await setQueryStates({ wpm: 0, theme: null, fontSize: null });
+    setTheme("black");
+  }, [resetDefaults, setQueryStates, setTheme]);
+
   const urlFromQuery = queryStates.url;
   const wpmFromQuery = queryStates.wpm;
   const themeFromQuery = queryStates.theme;
@@ -347,6 +358,8 @@ export default function ReaderPage() {
   );
 
   const [url, setUrl] = useState("");
+  const [loadedArticleUrl, setLoadedArticleUrl] = useState("");
+  const requestRef = useRef<AbortController | null>(null);
   const [article, setArticle] = useState<ArticleData | null>(null);
   const [wrappedContent, setWrappedContent] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -356,6 +369,8 @@ export default function ReaderPage() {
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const [showArticleOnMobile, setShowArticleOnMobile] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const copyFeedbackTimeout = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(copyFeedbackTimeout.current), []);
   const [mediaPreview, setMediaPreview] = useState<MediaPreview | null>(null);
   const [previousArticles, setPreviousArticles] = useState<PreviousArticle[]>(
     [],
@@ -426,37 +441,39 @@ export default function ReaderPage() {
     }
     setWrappedContent(wrapWordsInHtml(processedContent));
     setShowArticleOnMobile(false);
-    const words = parseWords(extractTextFromHtml(processedContent));
-    const wordCount = words.length;
-    if (wordCount === 0) {
-      setWordIndex(0);
-      return;
-    }
-    try {
-      if (url) {
-        const storedIndex = getReadingPositionForUrl(url);
-        if (typeof storedIndex === "number") {
-          const restoredIndex = Math.min(
-            Math.max(0, storedIndex),
-            wordCount - 1,
-          );
-          const id = setTimeout(() => {
-            setWordIndex(restoredIndex);
-            toast.info("Resumed from previous session");
-          }, 100);
-          return () => clearTimeout(id);
-        }
-      }
-    } catch {
-      // Ignore
-    }
-    setWordIndex(0);
-  }, [processedContent, url]);
+  }, [processedContent]);
 
+  const pendingPosition = useRef<{ url: string; index: number } | null>(null);
   useEffect(() => {
-    if (!article || !url) return;
-    saveReadingPosition(url, wordIndex);
-  }, [article, url, wordIndex]);
+    if (article && loadedArticleUrl) {
+      pendingPosition.current = { url: loadedArticleUrl, index: wordIndex };
+    }
+  }, [article, loadedArticleUrl, wordIndex]);
+  const flushPosition = useCallback(() => {
+    const position = pendingPosition.current;
+    if (position) {
+      saveReadingPosition(position.url, position.index);
+      pendingPosition.current = null;
+    }
+  }, []);
+  const handlePlaybackChange = useCallback((playing: boolean) => {
+    if (!playing) flushPosition();
+  }, [flushPosition]);
+  useEffect(() => {
+    const interval = window.setInterval(flushPosition, 1000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flushPosition();
+    };
+    window.addEventListener("pagehide", flushPosition);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("pagehide", flushPosition);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      flushPosition();
+      requestRef.current?.abort();
+    };
+  }, [flushPosition]);
 
   function handleWordClick(index: number) {
     setWordIndex(index);
@@ -516,6 +533,10 @@ export default function ReaderPage() {
     const trimmed = articleUrl.trim();
     if (!trimmed) return;
 
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
+    flushPosition();
     setIsLoading(true);
     setError(null);
     setArticle(null);
@@ -526,15 +547,26 @@ export default function ReaderPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: trimmed }),
+        signal: controller.signal,
       });
 
       const data = await res.json();
+      if (controller.signal.aborted) return;
 
       if (!res.ok) {
         throw new Error(data.error ?? "Failed to extract article");
       }
 
+      const wordCount = parseWords(extractTextFromHtml(
+        data.content ?? "",
+      )).length;
+      const storedIndex = getReadingPositionForUrl(trimmed);
+      const restoredIndex = typeof storedIndex === "number" && Number.isFinite(storedIndex)
+        ? Math.min(Math.max(0, Math.floor(storedIndex)), Math.max(0, wordCount - 1)) : 0;
+      setWordIndex(restoredIndex);
+      setLoadedArticleUrl(trimmed);
       setArticle(data);
+      if (restoredIndex > 0) toast.info("Resumed from previous session");
 
       const entry: PreviousArticle = {
         url: trimmed,
@@ -551,11 +583,12 @@ export default function ReaderPage() {
         return next;
       });
     } catch (err) {
+      if (controller.signal.aborted) return;
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
-      setIsLoading(false);
+      if (requestRef.current === controller) setIsLoading(false);
     }
-  }, []);
+  }, [flushPosition]);
 
   useEffect(() => {
     try {
@@ -602,13 +635,14 @@ export default function ReaderPage() {
     const trimmed = url.trim();
     if (!trimmed) return;
     setUrl(trimmed);
-    setQueryStates({ url: trimmed });
+    if (trimmed === urlFromQuery) loadArticle(trimmed);
+    else setQueryStates({ url: trimmed });
   }
 
   const handleCopyLink = useCallback(async () => {
-    if (!article || !url) return;
+    if (!article || !loadedArticleUrl) return;
     const params = new URLSearchParams();
-    params.set("url", url);
+    params.set("url", loadedArticleUrl);
     if (effectiveWpm !== WPM_DEFAULT) params.set("wpm", String(effectiveWpm));
     if (effectiveTheme !== "black") params.set("theme", effectiveTheme);
     if (effectiveFontSize !== "md") params.set("fontSize", effectiveFontSize);
@@ -616,14 +650,15 @@ export default function ReaderPage() {
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2000);
+      window.clearTimeout(copyFeedbackTimeout.current);
+      copyFeedbackTimeout.current = window.setTimeout(() => setCopiedLink(false), 2000);
       toast.success("Link copied");
     } catch {
-      // Ignore
+      toast.error("Could not copy link. Check clipboard permissions and try again.");
     }
   }, [
     article,
-    url,
+    loadedArticleUrl,
     effectiveWpm,
     effectiveTheme,
     effectiveFontSize,
@@ -753,7 +788,7 @@ export default function ReaderPage() {
                   )}
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
-              {article && url && (
+              {article && loadedArticleUrl && (
                 <DropdownMenuItem
                   onClick={handleCopyLink}
                   className="cursor-pointer"
@@ -887,7 +922,7 @@ export default function ReaderPage() {
                       setReduceMotion={setReduceMotion}
                       showKeyboardShortcuts
                       showShareShortcut
-                      onResetDefaults={resetDefaults}
+                      onResetDefaults={handleResetDefaults}
                     />
                   </div>
                 </Dialog.Content>
@@ -955,7 +990,7 @@ export default function ReaderPage() {
                     setReduceMotion={setReduceMotion}
                     showKeyboardShortcuts
                     showShareShortcut
-                    onResetDefaults={resetDefaults}
+                    onResetDefaults={handleResetDefaults}
                   />
                 </div>
               </DrawerContent>
@@ -1063,6 +1098,7 @@ export default function ReaderPage() {
                     wordsPerMinute={effectiveWpm}
                     onWordsPerMinuteChange={handleWordsPerMinuteChange}
                     onWordIndexChange={setWordIndex}
+                    onPlaybackChange={handlePlaybackChange}
                     controlledWordIndex={wordIndex}
                     sentenceEndDurationMsAt250Wpm={sentenceEndDurationMs}
                     speechBreakDurationMsAt250Wpm={speechBreakDurationMs}
@@ -1100,6 +1136,7 @@ export default function ReaderPage() {
             wordsPerMinute={effectiveWpm}
             onWordsPerMinuteChange={handleWordsPerMinuteChange}
             onWordIndexChange={setWordIndex}
+            onPlaybackChange={handlePlaybackChange}
             controlledWordIndex={wordIndex}
             sentenceEndDurationMsAt250Wpm={sentenceEndDurationMs}
             speechBreakDurationMsAt250Wpm={speechBreakDurationMs}
@@ -1128,6 +1165,20 @@ export default function ReaderPage() {
               "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
             )}
           >
+            <Dialog.Title className="sr-only">Media preview</Dialog.Title>
+            <Dialog.Description className="sr-only">
+              Media from the current article.
+            </Dialog.Description>
+            <Dialog.Close asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Close media preview"
+                className="absolute right-3 top-3 z-10"
+              >
+                <X className="size-4" />
+              </Button>
+            </Dialog.Close>
             {mediaPreview?.type === "image" && (
               // eslint-disable-next-line @next/next/no-img-element -- dynamic external URLs from article content
               <img

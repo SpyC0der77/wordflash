@@ -36,6 +36,9 @@ describe("article tokens across markup", () => {
     ["one <span style='visibility: hidden'><i><b style='visibility: visible !important'>two</b></i></span> three", "one two three"],
     ["one <span style='visibility: hidden'><b style='visibility: visible'>two<i style='visibility: hidden'>bad</i></b></span> three", "one two three"],
     ["one<span style='display: none'><b style='visibility: visible'>bad</b></span> two", "one two"],
+    ["one<div style='visibility: hidden'>bad</div> two", "one two"],
+    ["one<div style='visibility: hidden'><p>bad</p></div> two", "one two"],
+    ["one<div style='visibility: hidden'><b style='visibility: visible'>two</b></div>three", "one\ntwo\nthree"],
     ["one<span style='display: none !important'><b>bad</b></span> two", "one two"],
   ])("preserves reading boundaries for %s", (html, expected) => {
     const input = article(html);
