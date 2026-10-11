@@ -53,7 +53,6 @@ import { useReduceMotion } from "@/lib/reduce-motion-context";
 import { useReduceTransparency } from "@/lib/reduce-transparency-context";
 import { useTheme, type Theme } from "@/lib/theme-context";
 import {
-  attachTrailingCommasToLinks,
   calculateReadingTimeMs,
   extractTextFromHtml,
   parseWords,
@@ -81,7 +80,7 @@ const ArticleBody = forwardRef<HTMLDivElement, ArticleBodyProps>(
     { html, wordIndex, onWordClick, onMediaClick, scrollToWord },
     ref,
   ) {
-    const prevHighlightRef = useRef<HTMLElement | null>(null);
+    const prevHighlightRef = useRef<HTMLElement[]>([]);
 
     function handleClick(e: React.MouseEvent<HTMLDivElement>) {
       const media = (e.target as HTMLElement).closest("img, video, iframe");
@@ -123,20 +122,19 @@ const ArticleBody = forwardRef<HTMLDivElement, ArticleBodyProps>(
           : null;
       if (!container) return;
 
-      const span = container.querySelector(
+      const spans = Array.from(container.querySelectorAll<HTMLElement>(
         `[data-word-index="${wordIndex}"]`,
-      ) as HTMLElement | null;
+      ));
+      const span = spans[0];
 
-      const prevSpan = prevHighlightRef.current;
+      const prevSpan = prevHighlightRef.current[0];
       const prevRect = prevSpan?.getBoundingClientRect();
-      if (prevSpan) {
-        prevSpan.classList.remove("reader-highlight");
-        prevHighlightRef.current = null;
-      }
+      for (const previous of prevHighlightRef.current) previous.classList.remove("reader-highlight");
+      prevHighlightRef.current = [];
 
       if (span) {
-        span.classList.add("reader-highlight");
-        prevHighlightRef.current = span;
+        for (const part of spans) part.classList.add("reader-highlight");
+        prevHighlightRef.current = spans;
         const rect = span.getBoundingClientRect();
         const lineHeight = rect.height;
         const isNewLine =
@@ -153,7 +151,7 @@ const ArticleBody = forwardRef<HTMLDivElement, ArticleBodyProps>(
           }
         }
       }
-    }, [wordIndex, ref, scrollToWord]);
+    }, [html, wordIndex, ref, scrollToWord]);
 
     return (
       <div
@@ -408,10 +406,10 @@ export default function ReaderPage() {
     [articleHeaderRef, panelRef, articleScrollContainerRef, reduceMotion],
   );
 
-  // Preprocess content so trailing commas after links are attached to the link text.
+  // Inline formatting is preserved; tokenization handles boundaries across nodes.
   const processedContent = useMemo(
     () =>
-      article?.content ? attachTrailingCommasToLinks(article.content) : null,
+      article?.content ?? null,
     [article?.content],
   );
 

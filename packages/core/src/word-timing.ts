@@ -353,6 +353,7 @@ export function getFirstProperNounFlags(
 const ABBREVIATIONS = new Set([
   ...HONORIFICS,
   "e.g", "i.e", "vs", "etc", "approx", "dept", "est", "fig", "no", "vol",
+  "a.m", "p.m", "ph.d", "inc", "ltd",
 ]);
 
 function withoutClosingMarks(word: string): string {

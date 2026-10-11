@@ -20,6 +20,16 @@ Periods inside decimal numbers are not sentence boundaries. Titles and initials 
 
 The existing parser splits attached em dashes and double hyphens after the dash, retaining it on the preceding word. Ordinary hyphenated words, dates, and numeric ranges stay intact. Standalone punctuation remains a displayed token, preserving reader-view word indices.
 
+## Article markup
+
+Article playback and word highlighting share the same text stream. Inline tags
+do not insert spaces: `un<em>believ</em>able` is one word, and punctuation after
+bold text or a link stays attached. Fragments of a word share one highlight
+index while retaining their original markup. Paragraphs, headings, list items,
+and table rows create line breaks; adjacent table cells create word boundaries.
+Explicit `<br>` breaks remain intact. Script, style, template, and explicitly
+hidden content do not receive reading indices.
+
 ## Attention time
 
 Only the largest attention adjustment applies to a token:

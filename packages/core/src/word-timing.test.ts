@@ -15,6 +15,11 @@ import {
 } from "./word-timing";
 
 describe("wordEndsSentence", () => {
+  it.each(["a.m.", "p.m.", "Ph.D.", "Inc.", "Ltd."])("keeps %s inside a continuing sentence", (word) => {
+    expect(wordEndsSentence(word, "today")).toBe(false);
+    expect(wordEndsSentence(word, "The")).toBe(true);
+    expect(wordEndsSentence(word)).toBe(true);
+  });
   it("returns true for words ending in period", () => {
     expect(wordEndsSentence("end.")).toBe(true);
     expect(wordEndsSentence("Dr.")).toBe(true);

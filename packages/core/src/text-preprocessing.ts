@@ -115,12 +115,7 @@ export function getWordParts(word: string) {
   };
 }
 
-/**
- * Preprocesses HTML so trailing commas after links are moved inside the link.
- * E.g. `<a href="...">link</a>, ` becomes `<a href="...">link,</a> `.
- * This ensures the comma is attached to the last word of the link for
- * parseWords/wrapWordsInHtml, rather than being treated as its own word.
- */
+/** Legacy compatibility helper. Word boundaries now work across inline elements. */
 export function attachTrailingCommasToLinks(html: string): string {
   return html.replace(/(<\/a>)(\s*,\s*)/g, (_, tag, punct) => {
     const trailingSpace = /\s$/.test(punct) ? " " : "";
@@ -128,119 +123,91 @@ export function attachTrailingCommasToLinks(html: string): string {
   });
 }
 
-/**
- * Extracts plain text from HTML using the SAME word-boundary logic as
- * wrapWordsInHtml. Must be used for WordFlash text so indices match the
- * Reader View highlight. Client-only (DOMParser); returns "" during SSR.
- */
+const BLOCK_ELEMENTS = new Set([
+  "ADDRESS", "ARTICLE", "ASIDE", "BLOCKQUOTE", "DIV", "DL", "DT", "DD",
+  "FIGCAPTION", "FIGURE", "FOOTER", "H1", "H2", "H3", "H4", "H5", "H6",
+  "HEADER", "HR", "LI", "MAIN", "NAV", "OL", "P", "PRE", "SECTION", "TABLE",
+  "TR", "UL",
+]);
+const EXCLUDED_ELEMENTS = new Set(["SCRIPT", "STYLE", "TEMPLATE", "NOSCRIPT"]);
+
+/** One text stream for both playback and highlighting; inline tags add no spaces. */
+function articleTextStream(html: string) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const ranges: Array<{ node: Text; start: number; text: string }> = [];
+  let text = "";
+  function boundary() {
+    if (text && !text.endsWith("\n")) text += "\n";
+  }
+  function visit(node: Node) {
+    if (node.nodeType === 3) {
+      const value = (node.textContent ?? "").replace(/\s+/g, " ");
+      ranges.push({ node: node as Text, start: text.length, text: value });
+      text += value;
+      return;
+    }
+    if (node.nodeType !== 1) return;
+    const element = node as Element;
+    if (EXCLUDED_ELEMENTS.has(element.tagName) || element.hasAttribute("hidden") ||
+        element.getAttribute("aria-hidden") === "true") {
+      element.remove();
+      return;
+    }
+    if (element.tagName === "BR") {
+      text += "\n";
+      return;
+    }
+    const block = BLOCK_ELEMENTS.has(element.tagName);
+    if (block) boundary();
+    // Adjacent table cells still represent separate words.
+    if ((element.tagName === "TD" || element.tagName === "TH") && text && !/\s$/.test(text)) text += " ";
+    for (const child of Array.from(node.childNodes)) visit(child);
+    if (block) boundary();
+  }
+  visit(doc.body);
+  return { doc, text, ranges };
+}
+
+/** Extract visible article text, preserving inline words and structural breaks. */
 export function extractTextFromHtml(html: string): string {
   if (typeof document === "undefined") return "";
-
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, "text/html");
-  const parts: string[] = [];
-
-  let hasProcessedWords = false;
-  let lastWasLineBreak = false;
-
-  const walker = doc.createTreeWalker(
-    doc.body,
-    NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
-  );
-
-  while (walker.nextNode()) {
-    const node = walker.currentNode;
-    if (node instanceof HTMLElement && node.tagName === "BR") {
-      parts.push("\n");
-      lastWasLineBreak = true;
-      continue;
-    }
-    if (!(node instanceof Text)) continue;
-
-    const text = (node.textContent ?? "").replace(/\s+/g, " ");
-    const nodeParts = text.split(/( )/);
-
-    const hasContent = text.trim().length > 0;
-    const startsWithSpace = /^\s/.test(text);
-    const needsLeadingSpace =
-      hasContent &&
-      !startsWithSpace &&
-      hasProcessedWords &&
-      !lastWasLineBreak;
-
-    if (needsLeadingSpace) {
-      parts.push(" ");
-    }
-
-    for (const part of nodeParts) {
-      if (part === " ") {
-        parts.push(" ");
-      } else if (part) {
-        parts.push(part);
-        hasProcessedWords = true;
-        lastWasLineBreak = false;
-      }
-    }
-  }
-
-  return parts
-    .join("")
+  return articleTextStream(html).text
     .replace(/[^\S\n]+/g, " ")
     .replace(/ *\n */g, "\n")
     .trim();
 }
 
-/**
- * Wraps each word in the HTML with spans containing data-word-index for
- * highlighting. Depends on window/document (DOMParser). During SSR
- * (typeof document === "undefined"), returns the unmodified HTML.
- */
+/** A token can span multiple styled nodes; all fragments share its word index. */
 export function wrapWordsInHtml(html: string): string {
   if (typeof document === "undefined") return html;
-
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, "text/html");
-  let wordIndex = 0;
-
-  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
-  const textNodes: Text[] = [];
-  while (walker.nextNode()) {
-    const node = walker.currentNode;
-    if (node instanceof Text) textNodes.push(node);
+  const { doc, text, ranges } = articleTextStream(html);
+  const tokens: Array<{ start: number; end: number; index: number }> = [];
+  for (const match of text.matchAll(/\S+/g)) {
+    let start = match.index;
+    for (const word of splitOnEmDashes(match[0])) {
+      tokens.push({ start, end: start + word.length, index: tokens.length });
+      start += word.length;
+    }
   }
-
-  let hasProcessedWords = false;
-
-  for (const node of textNodes) {
-    const text = (node.textContent ?? "").replace(/\s+/g, " ");
-    const parts = text.split(/( )/);
+  let tokenCursor = 0;
+  for (const range of ranges) {
     const fragment = doc.createDocumentFragment();
-
-    const hasContent = text.trim().length > 0;
-    const startsWithSpace = /^\s/.test(text);
-    const needsLeadingSpace =
-      hasContent && !startsWithSpace && hasProcessedWords;
-
-    if (needsLeadingSpace) {
-      fragment.appendChild(doc.createTextNode(" "));
+    const end = range.start + range.text.length;
+    let offset = 0;
+    while (tokenCursor < tokens.length && tokens[tokenCursor].end <= range.start) tokenCursor++;
+    for (let i = tokenCursor; i < tokens.length && tokens[i].start < end; i++) {
+      const token = tokens[i];
+      const from = Math.max(token.start, range.start) - range.start;
+      const to = Math.min(token.end, end) - range.start;
+      if (from > offset) fragment.appendChild(doc.createTextNode(range.text.slice(offset, from)));
+      const span = doc.createElement("span");
+      span.setAttribute("data-word-index", String(token.index));
+      span.textContent = range.text.slice(from, to);
+      fragment.appendChild(span);
+      offset = to;
     }
-
-    for (const part of parts) {
-      if (part === " ") {
-        fragment.appendChild(doc.createTextNode(" "));
-      } else if (part) {
-        for (const word of splitOnEmDashes(part)) {
-          const span = doc.createElement("span");
-          span.setAttribute("data-word-index", String(wordIndex++));
-          span.textContent = word;
-          fragment.appendChild(span);
-          hasProcessedWords = true;
-        }
-      }
-    }
-
-    node.parentNode?.replaceChild(fragment, node);
+    if (offset < range.text.length) fragment.appendChild(doc.createTextNode(range.text.slice(offset)));
+    range.node.parentNode?.replaceChild(fragment, range.node);
   }
-
   return doc.body.innerHTML;
 }
