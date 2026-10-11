@@ -16,9 +16,23 @@ These are deterministic, English-oriented reading heuristics, not measured speec
 
 Comma pauses use the speech-break setting. Stronger clause boundaries use 1.25 times that setting; closing asides use half. Sentence pauses use the sentence-end setting, and line breaks use twice that setting. Overlapping boundaries use the strongest pause, so a period before a newline does not add a second sentence pause. Repeated punctuation does not stack delays. Closing straight or curly quotes and nested brackets do not hide the punctuation inside them.
 
-Periods inside decimal numbers are not sentence boundaries. Titles and initials followed by another token are treated as continuations. Common abbreviations and dotted acronyms normally continue a sentence; a following capitalized sentence-start function word, such as “The”, can indicate a new sentence. At the end of the document, a final period receives a sentence pause. These rules cannot resolve every ambiguity: “U.S. Army” and “U.S. Morgan arrived” may look structurally similar without deeper language analysis.
+Periods inside decimal numbers are not sentence boundaries. Titles and initials followed by another token are treated as continuations. Common abbreviations and dotted acronyms normally continue a sentence; a following capitalized sentence-start word, such as “The” or “Bring”, can indicate a new sentence. At the end of the document, a final period receives a sentence pause. These rules cannot resolve every ambiguity: “U.S. Army” and “U.S. Morgan arrived” may look structurally similar without deeper language analysis.
 
 The existing parser splits attached em dashes and double hyphens after the dash, retaining it on the preceding word. Ordinary hyphenated words, dates, and numeric ranges stay intact. Standalone punctuation remains a displayed token, preserving reader-view word indices.
+
+## Article markup
+
+Article playback and word highlighting share the same text stream. Inline tags
+do not insert spaces: `un<em>believ</em>able` is one word, and punctuation after
+bold text or a link stays attached. Fragments of a word share one highlight
+index while retaining their original markup. Paragraphs, headings, list items,
+and table rows create line breaks; adjacent table cells create word boundaries.
+Explicit `<br>` breaks remain intact. Script, style, template, and explicitly
+hidden content do not receive reading indices. Supported hiding mechanisms are
+`hidden`, `aria-hidden="true"`, and inline `display: none` or `visibility: hidden`.
+Inline visibility is inherited, and descendants with `visibility: visible`
+remain readable. A descendant cannot override a removed `display: none` subtree.
+Stylesheet-based hiding is not evaluated by the detached article parser.
 
 ## Attention time
 

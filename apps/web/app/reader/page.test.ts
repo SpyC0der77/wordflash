@@ -97,6 +97,18 @@ async function render() { await act(async () => root.render(React.createElement(
 function saved() { return JSON.parse(storage.get(POSITIONS) ?? "{}"); }
 
 describe("article session reliability", () => {
+  it("restores styled words using the same indices as playback and highlights all fragments", async () => {
+    storage.set(POSITIONS, JSON.stringify({ [URL_A]: 1 }));
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({
+      title: "Styled article", content: "<html><body><p>one un<em>believ</em>able three</p></body></html>",
+      excerpt: null, byline: null, siteName: null,
+    }) });
+    await render();
+    expect(state.reader?.controlledWordIndex).toBe(1);
+    const fragments = Array.from(container.querySelectorAll('[data-word-index="1"]'));
+    expect(fragments.map((node) => node.textContent)).toEqual(["un", "believ", "able"]);
+    expect(fragments.every((node) => node.classList.contains("reader-highlight"))).toBe(true);
+  });
   it("restores progress before saving and keeps it tied to the loaded article", async () => {
     storage.set(POSITIONS, JSON.stringify({ [URL_A]: 3 }));
     fetchMock.mockResolvedValue(response("Article A"));
