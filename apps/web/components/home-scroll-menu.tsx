@@ -10,7 +10,7 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
   const frameRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const iconRef = useRef<HTMLButtonElement>(null);
-  const reopened = useRef(false);
+  const manualProgress = useRef<number | null>(null);
   const redraw = useRef<() => void>(() => {});
   const [collapsed, setCollapsed] = useState(false);
   const { reduceMotion } = useReduceMotion();
@@ -24,22 +24,20 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
       const icon = iconRef.current;
       if (!frame || !content || !icon) return;
       const scrollRange = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
-      const amount = reopened.current ? 0 : Math.min(1, Math.max(0, window.scrollY || 0) / Math.min(96, scrollRange));
-      const progress = reduceMotion || systemReduceMotion ? Number(amount >= 1) : amount;
-      const desktop = window.innerWidth >= 640;
+      const amount = Math.min(1, Math.max(0, window.scrollY || 0) / Math.min(96, scrollRange));
+      const progress = manualProgress.current ?? (reduceMotion || systemReduceMotion ? Number(amount >= 1) : amount);
       const expandedWidth = content.offsetWidth || 220;
-      const expandedHeight = content.offsetHeight || 36;
-      frame.style.width = `${expandedWidth * (1 - progress) + 44 * progress}px`;
-      frame.style.height = `${expandedHeight * (1 - progress) + 44 * progress}px`;
-      frame.style.top = `${(desktop ? 32 : 12) * (1 - progress) + 8 * progress}px`;
-      frame.style.right = `${(desktop ? 32 : 12) * (1 - progress) + 12 * progress}px`;
-      content.style.opacity = String(Math.max(0, 1 - progress / 0.65));
-      icon.style.opacity = String(Math.max(0, (progress - 0.65) / 0.35));
-      setCollapsed(progress >= 0.65);
+      const travel = (expandedWidth + 8) * progress;
+      // Keep the button still; translate the controls behind its solid face.
+      frame.style.width = `${expandedWidth + 52}px`;
+      frame.style.clipPath = `inset(0 0 0 ${travel}px)`;
+      content.style.transform = `translate3d(${travel}px, 0, 0)`;
+      if (progress > 0 && content.contains(document.activeElement)) icon.focus();
+      setCollapsed(progress > 0);
     };
     redraw.current = draw;
     const schedule = () => {
-      reopened.current = false;
+      manualProgress.current = null;
       if (pendingFrame !== undefined) return;
       pendingFrame = window.requestAnimationFrame(() => {
         pendingFrame = undefined;
@@ -63,20 +61,20 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
   return (
     <div
       ref={frameRef}
-      className="fixed right-3 top-3 z-50 overflow-hidden transition-opacity duration-150 sm:right-8 sm:top-8"
+      className="pointer-events-none fixed right-3 top-3 z-50 h-11 overflow-hidden transition-opacity duration-150 sm:right-8 sm:top-8"
       style={{ opacity: dimmed ? 0.4 : 1 }}
       onKeyDown={(event) => {
         if (event.key === "Escape") {
-          reopened.current = false;
+          manualProgress.current = 1;
           redraw.current();
-          if (window.scrollY > 0) iconRef.current?.focus();
+          iconRef.current?.focus();
         }
       }}
     >
       <div
         id="home-navigation"
         ref={contentRef}
-        className="flex w-max items-center gap-2"
+        className="pointer-events-auto flex h-11 w-max items-center gap-2"
         inert={collapsed}
         aria-hidden={collapsed}
       >
@@ -86,17 +84,14 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
         ref={iconRef}
         variant="ghost"
         size="icon"
-        className="absolute right-0 top-0 size-11 rounded-none border border-border bg-background opacity-0 transition-none"
-        style={{ pointerEvents: collapsed ? "auto" : "none" }}
-        tabIndex={collapsed ? 0 : -1}
-        aria-hidden={!collapsed}
-        aria-label="Expand navigation"
+        className="pointer-events-auto absolute right-0 top-0 z-10 size-11 rounded-none border border-border bg-background transition-colors hover:bg-background dark:hover:bg-background"
+        aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
         aria-expanded={!collapsed}
         aria-controls="home-navigation"
         onClick={() => {
-          reopened.current = true;
+          manualProgress.current = collapsed ? 0 : 1;
           redraw.current();
-          contentRef.current?.querySelector<HTMLElement>("a, button")?.focus();
+          if (collapsed) contentRef.current?.querySelector<HTMLElement>("a, button")?.focus();
         }}
       >
         <Menu className="size-5" />
