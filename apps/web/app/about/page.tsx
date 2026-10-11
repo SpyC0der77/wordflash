@@ -75,8 +75,9 @@ export default function AboutPage() {
             >
               Article Reader
             </Link>
-            . Press play to begin. In the Article Reader, the full text appears
-            beside the word display, and you can click a word to jump to it.
+            . Press play to begin. The Article Reader highlights the current word
+            in the article; in compact view, switch between the article and speed
+            reader. Click a word to jump to it.
           </p>
         </section>
 
