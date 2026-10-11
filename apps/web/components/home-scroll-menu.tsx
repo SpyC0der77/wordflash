@@ -128,7 +128,7 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
         ref={iconRef}
         variant="ghost"
         size="icon"
-        className="absolute right-0 top-0 z-10 size-11 rounded-none border border-border bg-background opacity-0 transition-colors hover:bg-background dark:hover:bg-background"
+        className="absolute right-0 top-0 z-10 size-11 border border-border bg-background opacity-0 transition-colors hover:bg-background dark:hover:bg-background"
         style={{ pointerEvents: iconVisible ? "auto" : "none" }}
         tabIndex={iconVisible ? 0 : -1}
         aria-hidden={!iconVisible}
