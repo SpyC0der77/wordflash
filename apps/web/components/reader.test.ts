@@ -60,6 +60,37 @@ function renderReader(text: string) {
 }
 
 describe("reader playback timing", () => {
+  it("ignores repeated Space events while allowing the first press", () => {
+    renderReader("hello world");
+    const press = (repeat: boolean) => {
+      const event = new window.Event("keydown", { bubbles: true, cancelable: true });
+      Object.assign(event, { code: "Space", repeat });
+      act(() => window.dispatchEvent(event));
+    };
+    press(false);
+    expect(button().textContent).toBe("Pause");
+    press(true);
+    expect(button().textContent).toBe("Pause");
+    advance(240);
+    press(false);
+    expect(button().textContent).toBe("Play");
+  });
+
+  it("reports playback changes for saving progress on pause and completion", () => {
+    const onPlaybackChange = vi.fn();
+    act(() => root.render(React.createElement(Reader, {
+      variant: "test", text: "hello world", wordsPerMinute: 250, onPlaybackChange,
+    })));
+    expect(onPlaybackChange).toHaveBeenLastCalledWith(false);
+    click();
+    expect(onPlaybackChange).toHaveBeenLastCalledWith(true);
+    click();
+    expect(onPlaybackChange).toHaveBeenLastCalledWith(false);
+    click();
+    advance(240);
+    advance(240);
+    expect(onPlaybackChange).toHaveBeenLastCalledWith(false);
+  });
   it("holds the final number for its complete duration before completing", () => {
     const { onComplete, onWordIndexChange } = renderReader("hello 2026.");
     click();
