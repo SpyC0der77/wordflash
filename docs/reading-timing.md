@@ -30,6 +30,8 @@ and table rows create line breaks; adjacent table cells create word boundaries.
 Explicit `<br>` breaks remain intact. Script, style, template, and explicitly
 hidden content do not receive reading indices. Supported hiding mechanisms are
 `hidden`, `aria-hidden="true"`, and inline `display: none` or `visibility: hidden`.
+Inline visibility is inherited, and descendants with `visibility: visible`
+remain readable. A descendant cannot override a removed `display: none` subtree.
 Stylesheet-based hiding is not evaluated by the detached article parser.
 
 ## Attention time

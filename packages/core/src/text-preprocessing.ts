@@ -130,6 +130,7 @@ const BLOCK_ELEMENTS = new Set([
   "TR", "UL",
 ]);
 const EXCLUDED_ELEMENTS = new Set(["SCRIPT", "STYLE", "TEMPLATE", "NOSCRIPT"]);
+const MEDIA_ELEMENTS = new Set(["IMG", "VIDEO", "AUDIO", "IFRAME", "OBJECT", "EMBED"]);
 
 /** One text stream for both playback and highlighting; inline tags add no spaces. */
 function articleTextStream(html: string) {
@@ -140,8 +141,12 @@ function articleTextStream(html: string) {
     // Inspect without modifying text: ranges retain their original offsets.
     if (text && !/\n *$/.test(text)) text += "\n";
   }
-  function visit(node: Node) {
+  function visit(node: Node, inheritedVisibilityHidden = false) {
     if (node.nodeType === 3) {
+      if (inheritedVisibilityHidden) {
+        node.parentNode?.removeChild(node);
+        return;
+      }
       const value = (node.textContent ?? "").replace(/\s+/g, " ");
       ranges.push({ node: node as Text, start: text.length, text: value });
       text += value;
@@ -153,11 +158,23 @@ function articleTextStream(html: string) {
     const display = (style?.getPropertyValue("display") ?? "").replace(/\s*!important\s*$/i, "").trim().toLowerCase();
     const visibility = (style?.getPropertyValue("visibility") ?? "").replace(/\s*!important\s*$/i, "").trim().toLowerCase();
     if (EXCLUDED_ELEMENTS.has(element.tagName) || element.hasAttribute("hidden") ||
-        element.getAttribute("aria-hidden") === "true" || display === "none" || visibility === "hidden") {
+        element.getAttribute("aria-hidden") === "true" || display === "none") {
+      element.remove();
+      return;
+    }
+    // Visibility is inherited, but a descendant can explicitly become visible.
+    // Remove hidden text rather than its container so those overrides survive.
+    const visibilityHidden = visibility === "visible" ? false
+      : visibility === "hidden" ? true : inheritedVisibilityHidden;
+    if (visibilityHidden && MEDIA_ELEMENTS.has(element.tagName)) {
       element.remove();
       return;
     }
     if (element.tagName === "BR") {
+      if (visibilityHidden) {
+        element.remove();
+        return;
+      }
       text += "\n";
       return;
     }
@@ -165,7 +182,7 @@ function articleTextStream(html: string) {
     if (block) boundary();
     // Adjacent table cells still represent separate words.
     if ((element.tagName === "TD" || element.tagName === "TH") && text && !/\s$/.test(text)) text += " ";
-    for (const child of Array.from(node.childNodes)) visit(child);
+    for (const child of Array.from(node.childNodes)) visit(child, visibilityHidden);
     if (block) boundary();
   }
   visit(doc.body);

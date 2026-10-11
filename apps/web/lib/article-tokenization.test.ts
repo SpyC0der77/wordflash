@@ -32,6 +32,10 @@ describe("article tokens across markup", () => {
     ["one<span aria-hidden='true'>bad</span> two", "one two"],
     ["one<span style='display: none'>bad</span> two", "one two"],
     ["one<span style='visibility: hidden'>bad</span> two", "one two"],
+    ["one <span style='visibility: hidden'>bad<strong style='visibility: visible'>two</strong>bad</span> three", "one two three"],
+    ["one <span style='visibility: hidden'><i><b style='visibility: visible !important'>two</b></i></span> three", "one two three"],
+    ["one <span style='visibility: hidden'><b style='visibility: visible'>two<i style='visibility: hidden'>bad</i></b></span> three", "one two three"],
+    ["one<span style='display: none'><b style='visibility: visible'>bad</b></span> two", "one two"],
     ["one<span style='display: none !important'><b>bad</b></span> two", "one two"],
   ])("preserves reading boundaries for %s", (html, expected) => {
     const input = article(html);
@@ -70,6 +74,21 @@ describe("article tokens across markup", () => {
   it("removes inline-hidden descendants before the renderer can strip their styles", () => {
     const wrapped = wrapWordsInHtml(article("one<span style='visibility: hidden'><b>secret</b></span> two"));
     expect(wrapped).not.toContain("secret");
+  });
+  it("preserves visible descendant markup and indices inside a hidden ancestor", () => {
+    const html = article("one <span style='visibility: hidden'>secret <a href='/source' style='visibility: visible'><em>two</em></a> secret</span> three");
+    const wrapped = wrapWordsInHtml(html);
+    const { document } = parseHTML(wrapped);
+    expect(extractTextFromHtml(html)).toBe("one two three");
+    expect(wrapped).not.toContain("secret");
+    expect(document.querySelector("a")?.getAttribute("href")).toBe("/source");
+    expect(document.querySelector("a em span")?.textContent).toBe("two");
+    expect(document.querySelector("a em span")?.getAttribute("data-word-index")).toBe("1");
+  });
+  it("keeps visibility inheritance from exposing hidden media after sanitization", () => {
+    const wrapped = wrapWordsInHtml(article("one <span style='visibility: hidden'><img src='/hidden.jpg'><img src='/visible.jpg' style='visibility: visible'></span> two"));
+    expect(wrapped).not.toContain("/hidden.jpg");
+    expect(wrapped).toContain("/visible.jpg");
   });
 
   it.each([
