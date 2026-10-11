@@ -87,6 +87,7 @@ interface ReaderBaseProps {
   onWordsPerMinuteChange?: (value: number) => void;
   onWordIndexChange?: (index: number) => void;
   onComplete?: () => void;
+  onPlaybackChange?: (playing: boolean) => void;
   sentenceEndDurationMsAt250Wpm?: number;
   speechBreakDurationMsAt250Wpm?: number;
   /** When provided, syncs to this index (e.g. when user clicks a word in the article) */
@@ -136,6 +137,10 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
       ? () => {}
       : readerSettings.setWordsPerMinute);
   const [isPlaying, setIsPlaying] = useState(false);
+  const onPlaybackChange = props.onPlaybackChange;
+  useEffect(() => {
+    onPlaybackChange?.(isPlaying);
+  }, [isPlaying, onPlaybackChange]);
   const [completedText, setCompletedText] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [inputTab, setInputTab] = useState<"edit" | "scrub">("edit");
@@ -501,7 +506,9 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
       if (len === 0) return;
 
       if (e.code === "Space") {
+        if (tag === "button" || el?.closest("[role=button], [role=menu], [role=menuitem]")) return;
         e.preventDefault();
+        if (e.repeat) return;
         playPause();
         return;
       }
