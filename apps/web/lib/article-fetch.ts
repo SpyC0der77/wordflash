@@ -2,6 +2,7 @@ import dns from "node:dns";
 import net from "node:net";
 import http, { type IncomingMessage, type RequestOptions } from "node:http";
 import https from "node:https";
+import { Transform } from "node:stream";
 import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
 
 const MAX_HTML_BYTES = 5 * 1024 * 1024;
@@ -93,8 +94,21 @@ export async function fetchArticleHtml(input: string): Promise<{ html: string; u
     const encoding = response.headers["content-encoding"]?.toLowerCase();
     const decompressor = encoding === "gzip" ? createGunzip() : encoding === "deflate" ? createInflate()
       : encoding === "br" ? createBrotliDecompress() : null;
-    if (decompressor) response.on("error", (error) => decompressor.destroy(error));
-    const body = decompressor ? response.pipe(decompressor) : response;
+    let transferredBytes = 0;
+    const transferLimit = new Transform({
+      transform(chunk: Buffer, _encoding, callback) {
+        transferredBytes += chunk.length;
+        if (transferredBytes > MAX_HTML_BYTES) {
+          callback(new ArticleFetchError(413, "Response too large"));
+        } else {
+          callback(null, chunk);
+        }
+      },
+    });
+    const body = decompressor ? transferLimit.pipe(decompressor) : transferLimit;
+    response.on("error", (error) => body.destroy(error));
+    transferLimit.on("error", (error) => body.destroy(error));
+    response.pipe(transferLimit);
     const chunks: Buffer[] = [];
     let size = 0;
     try {
@@ -107,6 +121,7 @@ export async function fetchArticleHtml(input: string): Promise<{ html: string; u
       return { html: Buffer.concat(chunks, size).toString("utf8"), url: url.href };
     } finally {
       body.destroy();
+      transferLimit.destroy();
       response.destroy();
     }
   }

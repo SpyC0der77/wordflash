@@ -33,12 +33,15 @@ export async function extractArticle(url: unknown): Promise<ExtractResponse> {
 
     const { html, url: finalUrl } = await fetchArticleHtml(url);
     const { document } = parseHTML(html);
+    for (const base of Array.from(document.querySelectorAll("base"))) base.remove();
+    // Readability also resolves srcset and lazy-loaded media using baseURI.
+    Object.defineProperty(document, "baseURI", { value: finalUrl, configurable: true });
     // Resolve relative media and links against the final redirected URL without
     // modifying the source head tag or trusting an article-provided base element.
     for (const element of Array.from(document.querySelectorAll("[href], [src], [poster]"))) {
       for (const attribute of ["href", "src", "poster"]) {
         const value = element.getAttribute(attribute);
-        if (!value) continue;
+        if (value === null) continue;
         try {
           element.setAttribute(attribute, new URL(value, finalUrl).href);
         } catch {
@@ -46,7 +49,6 @@ export async function extractArticle(url: unknown): Promise<ExtractResponse> {
         }
       }
     }
-    for (const base of Array.from(document.querySelectorAll("base"))) base.remove();
     const reader = new Readability(document);
     const article = reader.parse();
 
@@ -84,7 +86,7 @@ export async function extractArticle(url: unknown): Promise<ExtractResponse> {
     }
     return {
       ok: false,
-      status: 502,
+      status: 500,
       body: { error: "Failed to extract article" },
     };
   }

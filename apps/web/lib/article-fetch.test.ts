@@ -48,6 +48,15 @@ describe("article destination validation", () => {
     await expect(fetchArticleHtml("https://example.org/")).rejects.toMatchObject({ status: 400 });
     expect(mocks.get).toHaveBeenCalledTimes(1);
   });
+  it("validates a redirected hostname at connection time", async () => {
+    responses.push({ status: 302, headers: { location: "https://private.example.org/article" } });
+    mocks.lookup.mockImplementation((hostname, _options, callback) => callback(null, [{
+      address: hostname === "private.example.org" ? "10.0.0.1" : "93.184.216.34", family: 4,
+    }]));
+    await expect(fetchArticleHtml("https://example.org/")).rejects.toMatchObject({ status: 400 });
+    expect(mocks.lookup).toHaveBeenCalledTimes(2);
+    expect(mocks.lookup.mock.calls[1][0]).toBe("private.example.org");
+  });
   it("rejects mixed public and private DNS answers at connection time", async () => {
     mocks.lookup.mockImplementation((_host, _opts, callback) => callback(null, [
       { address: "93.184.216.34", family: 4 }, { address: "10.0.0.1", family: 4 },
@@ -76,6 +85,16 @@ describe("article body limits", () => {
   });
   it("bounds decompressed bodies as well", async () => {
     responses.push({ headers: { "content-encoding": "gzip" }, chunks: [gzipSync(Buffer.alloc(6 * 1024 * 1024))] });
+    await expect(fetchArticleHtml("https://example.org/")).rejects.toMatchObject({ status: 413 });
+  });
+  it("bounds chunked compressed transfers even when the decoded body is small", async () => {
+    const gzip = gzipSync(Buffer.from("hi"));
+    const header = Buffer.from(gzip.subarray(0, 10));
+    header[3] |= 8; // Valid gzip FNAME metadata can exceed the decoded payload size.
+    responses.push({ headers: { "content-encoding": "gzip" }, chunks: [
+      Buffer.concat([header, Buffer.alloc(3 * 1024 * 1024, 97)]),
+      Buffer.concat([Buffer.alloc(3 * 1024 * 1024, 97), Buffer.from([0]), gzip.subarray(10)]),
+    ] });
     await expect(fetchArticleHtml("https://example.org/")).rejects.toMatchObject({ status: 413 });
   });
   it("rejects declared oversized bodies", async () => {

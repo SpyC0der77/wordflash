@@ -31,7 +31,8 @@ vi.mock("@/components/reader-settings-content", () => ({ ReaderSettingsContent: 
 vi.mock("next/link", () => ({ default: ({ children }: { children: React.ReactNode }) => React.createElement("a", null, children) }));
 vi.mock("@/components/ui/button", () => ({ Button: ({ children, onClick, disabled, type, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
   React.createElement("button", { onClick, disabled, type, "aria-label": props["aria-label"] }, children) }));
-vi.mock("@/components/ui/input", () => ({ Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => React.createElement("input", props) }));
+vi.mock("@/components/ui/input", () => ({ Input: ({ onChange, ...props }: React.InputHTMLAttributes<HTMLInputElement>) =>
+  React.createElement("input", { ...props, onInput: onChange }) }));
 vi.mock("radix-ui", () => {
   const div = ({ children }: { children: React.ReactNode }) => React.createElement("div", null, children);
   return { Dialog: Object.fromEntries(["Root", "Trigger", "Portal", "Content", "Overlay", "Title", "Description", "Close"].map((key) => [key, div])) };
@@ -103,9 +104,12 @@ describe("article session reliability", () => {
     expect(state.reader?.controlledWordIndex).toBe(3);
     expect(saved()[URL_A]).toBe(3);
     const input = container.querySelector("input")!;
-    const propsKey = Object.keys(input).find((key) => key.startsWith("__reactProps$"))!;
-    act(() => (input as unknown as Record<string, { onChange: (event: unknown) => void }>)[propsKey].onChange({ target: { value: URL_B } }));
+    const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!;
+    valueSetter.call(input, URL_B);
+    act(() => input.dispatchEvent(new window.Event("input", { bubbles: true })));
+    expect(container.querySelector("input")?.value).toBe(URL_B);
     act(() => state.reader?.onWordIndexChange(4));
+    expect(container.querySelector("input")?.value).toBe(URL_B);
     act(() => vi.advanceTimersByTime(1000));
     expect(saved()).toEqual({ [URL_A]: 4 });
     const event = new window.Event("keydown", { bubbles: true, cancelable: true });
