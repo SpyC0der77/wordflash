@@ -11,29 +11,40 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
   const contentRef = useRef<HTMLDivElement>(null);
   const iconRef = useRef<HTMLButtonElement>(null);
   const manualProgress = useRef<number | null>(null);
-  const redraw = useRef<() => void>(() => {});
+  const hovered = useRef(false);
+  const redraw = useRef<(animate?: boolean) => void>(() => {});
   const [collapsed, setCollapsed] = useState(false);
+  const [iconVisible, setIconVisible] = useState(false);
   const { reduceMotion } = useReduceMotion();
   const systemReduceMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
 
   useEffect(() => {
     let pendingFrame: number | undefined;
-    const draw = () => {
+    const draw = (animate = false) => {
       const frame = frameRef.current;
       const content = contentRef.current;
       const icon = iconRef.current;
       if (!frame || !content || !icon) return;
       const scrollRange = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
-      const amount = Math.min(1, Math.max(0, window.scrollY || 0) / Math.min(96, scrollRange));
-      const progress = manualProgress.current ?? (reduceMotion || systemReduceMotion ? Number(amount >= 1) : amount);
+      const scroll = Math.max(0, window.scrollY || 0);
+      const distance = Math.min(120, scrollRange);
+      const fadeDistance = Math.min(24, distance / 4);
+      const amount = Math.min(1, Math.max(0, (scroll - fadeDistance) / (distance - fadeDistance)));
+      const reduced = reduceMotion || systemReduceMotion;
+      const progress = manualProgress.current ?? (hovered.current ? 0 : reduced ? Number(scroll > 0) : amount);
       const expandedWidth = content.offsetWidth || 220;
       const travel = (expandedWidth + 8) * progress;
       // Keep the button still; translate the controls behind its solid face.
+      frame.style.transitionProperty = animate && !reduced ? "opacity, clip-path" : "opacity";
+      content.style.transition = animate && !reduced ? "transform 150ms ease-out" : "none";
       frame.style.width = `${expandedWidth + 52}px`;
       frame.style.clipPath = `inset(0 0 0 ${travel}px)`;
       content.style.transform = `translate3d(${travel}px, 0, 0)`;
+      icon.style.opacity = String(reduced ? Number(scroll > 0) : Math.min(1, scroll / fadeDistance));
       if (progress > 0 && content.contains(document.activeElement)) icon.focus();
+      if (scroll === 0 && document.activeElement === icon) icon.blur();
       setCollapsed(progress > 0);
+      setIconVisible(scroll > 0);
     };
     redraw.current = draw;
     const schedule = () => {
@@ -46,12 +57,13 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
     };
     draw();
     window.addEventListener("scroll", schedule, { passive: true });
-    window.addEventListener("resize", draw);
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(draw);
+    const resize = () => draw();
+    window.addEventListener("resize", resize);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(resize);
     if (contentRef.current) observer?.observe(contentRef.current);
     return () => {
       window.removeEventListener("scroll", schedule);
-      window.removeEventListener("resize", draw);
+      window.removeEventListener("resize", resize);
       observer?.disconnect();
       if (pendingFrame !== undefined) window.cancelAnimationFrame(pendingFrame);
       redraw.current = () => {};
@@ -61,12 +73,24 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
   return (
     <div
       ref={frameRef}
-      className="pointer-events-none fixed right-3 top-3 z-50 h-11 overflow-hidden transition-opacity duration-150 sm:right-8 sm:top-8"
+      className="fixed right-3 top-3 z-50 h-11 overflow-hidden transition-opacity duration-150 sm:right-8 sm:top-8"
       style={{ opacity: dimmed ? 0.4 : 1 }}
+      onPointerEnter={(event) => {
+        if (event.pointerType === "touch") return;
+        hovered.current = true;
+        manualProgress.current = null;
+        redraw.current(true);
+      }}
+      onPointerLeave={(event) => {
+        if (event.pointerType === "touch") return;
+        hovered.current = false;
+        manualProgress.current = null;
+        redraw.current(true);
+      }}
       onKeyDown={(event) => {
-        if (event.key === "Escape") {
+        if (event.key === "Escape" && window.scrollY > 0) {
           manualProgress.current = 1;
-          redraw.current();
+          redraw.current(true);
           iconRef.current?.focus();
         }
       }}
@@ -84,14 +108,17 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
         ref={iconRef}
         variant="ghost"
         size="icon"
-        className="pointer-events-auto absolute right-0 top-0 z-10 size-11 rounded-none border border-border bg-background transition-colors hover:bg-background dark:hover:bg-background"
+        className="absolute right-0 top-0 z-10 size-11 rounded-none border border-border bg-background opacity-0 transition-colors hover:bg-background dark:hover:bg-background"
+        style={{ pointerEvents: iconVisible ? "auto" : "none" }}
+        tabIndex={iconVisible ? 0 : -1}
+        aria-hidden={!iconVisible}
         aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
         aria-expanded={!collapsed}
         aria-controls="home-navigation"
         onClick={() => {
           manualProgress.current = collapsed ? 0 : 1;
-          redraw.current();
-          if (collapsed) contentRef.current?.querySelector<HTMLElement>("a, button")?.focus();
+          redraw.current(true);
+          if (collapsed) requestAnimationFrame(() => contentRef.current?.querySelector<HTMLElement>("a, button")?.focus());
         }}
       >
         <Menu className="size-5" />
