@@ -40,14 +40,21 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
       const distance = Math.min(mobile ? 64 : 120, scrollRange);
       const fadeDistance = Math.min(mobile ? 12 : 24, distance / 4);
       const amount = Math.min(1, Math.max(0, (scroll - fadeDistance) / (distance - fadeDistance)));
+      // Ease out while closing; reversing the same curve eases in while opening.
+      const easedAmount = 1 - (1 - amount) ** 2;
       const reduced = reduceMotion || systemReduceMotion;
-      const progress = manualProgress.current ?? (hovered.current ? 0 : reduced ? Number(scroll > 0) : amount);
+      const progress = manualProgress.current ?? (hovered.current ? 0 : reduced ? Number(scroll > 0) : easedAmount);
       const travel = (expandedWidth + 8) * progress;
-      const duration = mobile ? 100 : 150;
-      // Keep the button still; translate the controls behind its solid face.
-      frame.style.transitionProperty = animate && !reduced ? "opacity, clip-path" : "opacity";
-      frame.style.transitionDuration = `${duration}ms`;
-      content.style.transition = animate && !reduced ? `transform ${duration}ms ease-out` : "none";
+      const opening = progress === 0;
+      const duration = mobile ? (opening ? 150 : 100) : (opening ? 220 : 150);
+      const easing = opening ? "cubic-bezier(0.16, 1, 0.3, 1)" : "ease-out";
+      const animateReveal = animate && !reduced;
+      // Keep the reveal edge in sync with the controls behind the stationary button.
+      frame.style.transitionProperty = animateReveal ? "opacity, clip-path" : "opacity";
+      frame.style.transitionDuration = animateReveal ? `150ms, ${duration}ms` : "150ms";
+      const opacityEasing = "cubic-bezier(0.4, 0, 0.2, 1)";
+      frame.style.transitionTimingFunction = animateReveal ? `${opacityEasing}, ${easing}` : opacityEasing;
+      content.style.transition = animateReveal ? `transform ${duration}ms ${easing}` : "none";
       frame.style.clipPath = `inset(0 0 0 ${travel}px)`;
       content.style.transform = `translate3d(${travel}px, 0, 0)`;
       icon.style.opacity = String(reduced ? Number(scroll > 0) : Math.min(1, scroll / fadeDistance));
@@ -126,7 +133,7 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
         ref={iconRef}
         variant="ghost"
         size="icon"
-        className="absolute right-0 top-0 z-10 size-11 rounded-none border border-border bg-background opacity-0 transition-colors hover:bg-background dark:hover:bg-background"
+        className="absolute right-0 top-0 z-10 size-11 border border-border bg-background opacity-0 transition-colors hover:bg-background dark:hover:bg-background"
         style={{ pointerEvents: iconVisible ? "auto" : "none" }}
         tabIndex={iconVisible ? 0 : -1}
         aria-hidden={!iconVisible}

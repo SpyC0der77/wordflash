@@ -135,8 +135,14 @@ describe("home navigation scroll and hover", () => {
     scroll(64);
     expect(navigation().style.transform).toBe("translate3d(193px, 0, 0)");
     act(() => button().click());
-    expect(navigation().style.transition).toBe("transform 100ms ease-out");
+    expect(navigation().style.transition).toBe("transform 150ms cubic-bezier(0.16, 1, 0.3, 1)");
+    expect(button().parentElement!.style.transitionDuration).toBe("150ms, 150ms");
+    expect(button().parentElement!.style.transitionTimingFunction).toBe("cubic-bezier(0.4, 0, 0.2, 1), cubic-bezier(0.16, 1, 0.3, 1)");
     expect(button().getAttribute("aria-expanded")).toBe("true");
+    act(() => button().click());
+    expect(navigation().style.transition).toBe("transform 100ms ease-out");
+    expect(button().parentElement!.style.transitionDuration).toBe("150ms, 100ms");
+    expect(button().parentElement!.style.transitionTimingFunction).toBe("cubic-bezier(0.4, 0, 0.2, 1), ease-out");
   });
 
   it("fades the hamburger in before moving controls, and hides it at the top", async () => {
@@ -155,16 +161,43 @@ describe("home navigation scroll and hover", () => {
     expect(button().getAttribute("aria-expanded")).toBe("true");
   });
 
+  it("slows the collapse on scroll down and accelerates the expansion on scroll up", async () => {
+    await render();
+    // Equal scroll steps move the 193px-wide controls progressively less when closing.
+    const positions = [
+      [24, 0],
+      [48, 84.4375],
+      [72, 144.75],
+      [96, 180.9375],
+      [120, 193],
+    ];
+    for (const [y, travel] of positions) {
+      scroll(y);
+      expect(navigation().style.transform).toBe(`translate3d(${travel}px, 0, 0)`);
+    }
+    // Reversing scroll retraces the same positions without a jump on direction change.
+    for (const [y, travel] of positions.toReversed()) {
+      scroll(y);
+      expect(navigation().style.transform).toBe(`translate3d(${travel}px, 0, 0)`);
+    }
+  });
+
   it("expands on mouse hover and returns to the scroll position on leave", async () => {
     await render();
     scroll(120);
     hover(true);
     expect(navigation().style.transform).toBe("translate3d(0px, 0, 0)");
+    expect(navigation().style.transition).toBe("transform 220ms cubic-bezier(0.16, 1, 0.3, 1)");
+    expect(button().parentElement!.style.transitionDuration).toBe("150ms, 220ms");
+    expect(button().parentElement!.style.transitionTimingFunction).toBe("cubic-bezier(0.4, 0, 0.2, 1), cubic-bezier(0.16, 1, 0.3, 1)");
     expect(button().getAttribute("aria-expanded")).toBe("true");
     scroll(180);
     expect(button().getAttribute("aria-expanded")).toBe("true");
     hover(false);
     expect(navigation().style.transform).toBe("translate3d(193px, 0, 0)");
+    expect(navigation().style.transition).toBe("transform 150ms ease-out");
+    expect(button().parentElement!.style.transitionDuration).toBe("150ms, 150ms");
+    expect(button().parentElement!.style.transitionTimingFunction).toBe("cubic-bezier(0.4, 0, 0.2, 1), ease-out");
     expect(button().getAttribute("aria-expanded")).toBe("false");
   });
 
