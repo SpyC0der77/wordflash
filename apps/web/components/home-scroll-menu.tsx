@@ -45,11 +45,14 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
       const reduced = reduceMotion || systemReduceMotion;
       const progress = manualProgress.current ?? (hovered.current ? 0 : reduced ? Number(scroll > 0) : easedAmount);
       const travel = (expandedWidth + 8) * progress;
-      const duration = mobile ? 100 : 150;
-      // Keep the button still; translate the controls behind its solid face.
+      const opening = progress === 0;
+      const duration = mobile ? (opening ? 150 : 100) : (opening ? 220 : 150);
+      const easing = opening ? "cubic-bezier(0.16, 1, 0.3, 1)" : "ease-out";
+      // Keep the reveal edge in sync with the controls behind the stationary button.
       frame.style.transitionProperty = animate && !reduced ? "opacity, clip-path" : "opacity";
       frame.style.transitionDuration = `${duration}ms`;
-      content.style.transition = animate && !reduced ? `transform ${duration}ms ease-out` : "none";
+      frame.style.transitionTimingFunction = easing;
+      content.style.transition = animate && !reduced ? `transform ${duration}ms ${easing}` : "none";
       frame.style.clipPath = `inset(0 0 0 ${travel}px)`;
       content.style.transform = `translate3d(${travel}px, 0, 0)`;
       icon.style.opacity = String(reduced ? Number(scroll > 0) : Math.min(1, scroll / fadeDistance));

@@ -135,8 +135,14 @@ describe("home navigation scroll and hover", () => {
     scroll(64);
     expect(navigation().style.transform).toBe("translate3d(193px, 0, 0)");
     act(() => button().click());
-    expect(navigation().style.transition).toBe("transform 100ms ease-out");
+    expect(navigation().style.transition).toBe("transform 150ms cubic-bezier(0.16, 1, 0.3, 1)");
+    expect(button().parentElement!.style.transitionDuration).toBe("150ms");
+    expect(button().parentElement!.style.transitionTimingFunction).toBe("cubic-bezier(0.16, 1, 0.3, 1)");
     expect(button().getAttribute("aria-expanded")).toBe("true");
+    act(() => button().click());
+    expect(navigation().style.transition).toBe("transform 100ms ease-out");
+    expect(button().parentElement!.style.transitionDuration).toBe("100ms");
+    expect(button().parentElement!.style.transitionTimingFunction).toBe("ease-out");
   });
 
   it("fades the hamburger in before moving controls, and hides it at the top", async () => {
@@ -181,11 +187,17 @@ describe("home navigation scroll and hover", () => {
     scroll(120);
     hover(true);
     expect(navigation().style.transform).toBe("translate3d(0px, 0, 0)");
+    expect(navigation().style.transition).toBe("transform 220ms cubic-bezier(0.16, 1, 0.3, 1)");
+    expect(button().parentElement!.style.transitionDuration).toBe("220ms");
+    expect(button().parentElement!.style.transitionTimingFunction).toBe("cubic-bezier(0.16, 1, 0.3, 1)");
     expect(button().getAttribute("aria-expanded")).toBe("true");
     scroll(180);
     expect(button().getAttribute("aria-expanded")).toBe("true");
     hover(false);
     expect(navigation().style.transform).toBe("translate3d(193px, 0, 0)");
+    expect(navigation().style.transition).toBe("transform 150ms ease-out");
+    expect(button().parentElement!.style.transitionDuration).toBe("150ms");
+    expect(button().parentElement!.style.transitionTimingFunction).toBe("ease-out");
     expect(button().getAttribute("aria-expanded")).toBe("false");
   });
 
