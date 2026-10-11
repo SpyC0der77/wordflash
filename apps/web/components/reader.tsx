@@ -13,6 +13,7 @@ import React, {
 import { Dialog } from "radix-ui";
 import { PunctuationGlyph } from "@/components/punctuation-glyph";
 import { ReaderSettingsContent } from "@/components/reader-settings-content";
+import { HomeScrollMenu } from "@/components/home-scroll-menu";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -648,6 +649,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
         <div
           className={cn(
             "relative mx-auto flex w-full max-w-4xl items-center justify-center overflow-hidden rounded-lg border sm:rounded-xl",
+            isFull && "max-w-[min(56rem,calc(100vw-132px))]",
             reduceTransparency
               ? "border-border bg-muted dark:border-zinc-700"
               : "border-border bg-muted/80 dark:border-white/10 dark:bg-muted/90",
@@ -799,12 +801,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
 
   return (
     <main className="relative mx-auto flex min-h-screen w-full max-w-5xl flex-col items-center px-4 py-10 sm:px-8">
-      <div
-        className={cn(
-          "fixed right-3 top-3 z-50 flex items-center gap-2 transition-opacity duration-300 sm:right-8 sm:top-8",
-          isPlaying ? "opacity-40" : "opacity-100",
-        )}
-      >
+      <HomeScrollMenu dimmed={isPlaying}>
         <Link
           href="/reader"
           className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
@@ -968,7 +965,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
             </DrawerContent>
           </Drawer>
         )}
-      </div>
+      </HomeScrollMenu>
       <div className="min-h-0 flex-1 shrink-0" aria-hidden />
       {content}
       <div className="min-h-0 flex-1 shrink-0" aria-hidden />
