@@ -23,10 +23,16 @@ describe("article tokens across markup", () => {
     ["one&nbsp;<b>two</b>", "one two"],
     ["one—<b>two</b>", "one—two"],
     ["<p>one</p><p>two</p>", "one\ntwo"],
+    ["<p>one</p>\n  <p>two</p>", "one\ntwo"],
+    ["<div> <p>one</p>\n <p>two</p> </div>", "one\ntwo"],
     ["<h2>Title</h2><ul><li>one</li><li>two</li></ul>", "Title\none\ntwo"],
     ["one<br><br>two", "one\n\ntwo"],
     ["<table><tr><td>one</td><td>two</td></tr></table>", "one two"],
-    ["one<script>bad</script><span hidden>bad</span> two", "one two"],
+    ["one<script>bad</script><style>bad</style><template>bad</template><noscript>bad</noscript><span hidden>bad</span> two", "one two"],
+    ["one<span aria-hidden='true'>bad</span> two", "one two"],
+    ["one<span style='display: none'>bad</span> two", "one two"],
+    ["one<span style='visibility: hidden'>bad</span> two", "one two"],
+    ["one<span style='display: none !important'><b>bad</b></span> two", "one two"],
   ])("preserves reading boundaries for %s", (html, expected) => {
     const input = article(html);
     expect(extractTextFromHtml(input)).toBe(expected);
@@ -37,7 +43,10 @@ describe("article tokens across markup", () => {
       .filter((node) => node.getAttribute("data-word-index") === String(index))
       .map((node) => node.textContent).join(""));
     expect(reconstructed).toEqual(words);
-    expect(fragments.every((node) => Number(node.getAttribute("data-word-index")) < words.length)).toBe(true);
+    expect(fragments.every((node) => {
+      const index = Number(node.getAttribute("data-word-index"));
+      return Number.isInteger(index) && index >= 0 && index < words.length;
+    })).toBe(true);
   });
 
   it("keeps styling and links on fragments of the same word", () => {
@@ -51,6 +60,16 @@ describe("article tokens across markup", () => {
     const parsed = parseWordsDetailed(extractTextFromHtml(article("<p>one <em>two</em></p><p>three</p>")));
     expect(parsed.words).toEqual(["one", "two", "three"]);
     expect(parsed.hasLineBreakAfter).toEqual([false, true, false]);
+  });
+  it("retains one structural break across indentation without shifting word indices", () => {
+    const html = article("<p>one</p>\n  <p><b>two</b> three</p>");
+    expect(parseWordsDetailed(extractTextFromHtml(html)).newlinesAfter).toEqual([1, 0, 0]);
+    const { document } = parseHTML(wrapWordsInHtml(html));
+    expect(document.querySelector("b span")?.getAttribute("data-word-index")).toBe("1");
+  });
+  it("removes inline-hidden descendants before the renderer can strip their styles", () => {
+    const wrapped = wrapWordsInHtml(article("one<span style='visibility: hidden'><b>secret</b></span> two"));
+    expect(wrapped).not.toContain("secret");
   });
 
   it.each([

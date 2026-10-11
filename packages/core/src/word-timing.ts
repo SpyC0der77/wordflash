@@ -180,6 +180,7 @@ const NAME_PARTICLES = new Set([
 ]);
 
 const SENTENCE_START_CONTENT_WORDS = new Set([
+  "bring",
   "help",
   "wait",
   "look",
@@ -370,7 +371,8 @@ export function wordEndsSentence(word: string, nextWord?: string): boolean {
     if (ABBREVIATIONS.has(key) || /^(?:\p{L}\.){2,}$/u.test(core)) {
       return (
         /^\p{Lu}/u.test(nameCore(nextWord)) &&
-        SENTENCE_START_FUNCTION_WORDS.has(properNounKey(nextWord))
+        (SENTENCE_START_FUNCTION_WORDS.has(properNounKey(nextWord)) ||
+          SENTENCE_START_CONTENT_WORDS.has(properNounKey(nextWord)))
       );
     }
   }

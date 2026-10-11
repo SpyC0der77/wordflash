@@ -137,7 +137,8 @@ function articleTextStream(html: string) {
   const ranges: Array<{ node: Text; start: number; text: string }> = [];
   let text = "";
   function boundary() {
-    if (text && !text.endsWith("\n")) text += "\n";
+    // Inspect without modifying text: ranges retain their original offsets.
+    if (text && !/\n *$/.test(text)) text += "\n";
   }
   function visit(node: Node) {
     if (node.nodeType === 3) {
@@ -148,8 +149,11 @@ function articleTextStream(html: string) {
     }
     if (node.nodeType !== 1) return;
     const element = node as Element;
+    const style = (element as HTMLElement).style;
+    const display = (style?.getPropertyValue("display") ?? "").replace(/\s*!important\s*$/i, "").trim().toLowerCase();
+    const visibility = (style?.getPropertyValue("visibility") ?? "").replace(/\s*!important\s*$/i, "").trim().toLowerCase();
     if (EXCLUDED_ELEMENTS.has(element.tagName) || element.hasAttribute("hidden") ||
-        element.getAttribute("aria-hidden") === "true") {
+        element.getAttribute("aria-hidden") === "true" || display === "none" || visibility === "hidden") {
       element.remove();
       return;
     }

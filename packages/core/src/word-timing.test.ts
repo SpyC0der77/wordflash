@@ -20,6 +20,13 @@ describe("wordEndsSentence", () => {
     expect(wordEndsSentence(word, "The")).toBe(true);
     expect(wordEndsSentence(word)).toBe(true);
   });
+  it.each(["Bring", "Help", "Wait", "Today", "Chapter"])("recognizes a content-word sentence start after an abbreviation: %s", (next) => {
+    expect(wordEndsSentence("p.m.", next)).toBe(true);
+    expect(wordEndsSentence("p.m.", next.toLowerCase())).toBe(false);
+  });
+  it("keeps a name after an abbreviation inside the current sentence", () => {
+    expect(wordEndsSentence("Ltd.", "Morgan")).toBe(false);
+  });
   it("returns true for words ending in period", () => {
     expect(wordEndsSentence("end.")).toBe(true);
     expect(wordEndsSentence("Dr.")).toBe(true);

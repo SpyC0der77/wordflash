@@ -28,7 +28,9 @@ bold text or a link stays attached. Fragments of a word share one highlight
 index while retaining their original markup. Paragraphs, headings, list items,
 and table rows create line breaks; adjacent table cells create word boundaries.
 Explicit `<br>` breaks remain intact. Script, style, template, and explicitly
-hidden content do not receive reading indices.
+hidden content do not receive reading indices. Supported hiding mechanisms are
+`hidden`, `aria-hidden="true"`, and inline `display: none` or `visibility: hidden`.
+Stylesheet-based hiding is not evaluated by the detached article parser.
 
 ## Attention time
 
