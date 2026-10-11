@@ -155,6 +155,27 @@ describe("home navigation scroll and hover", () => {
     expect(button().getAttribute("aria-expanded")).toBe("true");
   });
 
+  it("slows the collapse on scroll down and accelerates the expansion on scroll up", async () => {
+    await render();
+    // Equal scroll steps move the 193px-wide controls progressively less when closing.
+    const positions = [
+      [24, 0],
+      [48, 84.4375],
+      [72, 144.75],
+      [96, 180.9375],
+      [120, 193],
+    ];
+    for (const [y, travel] of positions) {
+      scroll(y);
+      expect(navigation().style.transform).toBe(`translate3d(${travel}px, 0, 0)`);
+    }
+    // Reversing scroll retraces the same positions without a jump on direction change.
+    for (const [y, travel] of positions.toReversed()) {
+      scroll(y);
+      expect(navigation().style.transform).toBe(`translate3d(${travel}px, 0, 0)`);
+    }
+  });
+
   it("expands on mouse hover and returns to the scroll position on leave", async () => {
     await render();
     scroll(120);
