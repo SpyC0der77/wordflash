@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -12,11 +12,19 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
   const iconRef = useRef<HTMLButtonElement>(null);
   const manualProgress = useRef<number | null>(null);
   const hovered = useRef(false);
+  const focusOnCollapse = useRef(false);
   const redraw = useRef<(animate?: boolean) => void>(() => {});
   const [collapsed, setCollapsed] = useState(false);
   const [iconVisible, setIconVisible] = useState(false);
   const { reduceMotion } = useReduceMotion();
   const systemReduceMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
+
+  useLayoutEffect(() => {
+    if (collapsed && iconVisible && focusOnCollapse.current) {
+      iconRef.current?.focus({ preventScroll: true });
+      focusOnCollapse.current = false;
+    }
+  }, [collapsed, iconVisible]);
 
   useEffect(() => {
     let pendingFrame: number | undefined;
@@ -43,10 +51,10 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
       frame.style.clipPath = `inset(0 0 0 ${travel}px)`;
       content.style.transform = `translate3d(${travel}px, 0, 0)`;
       icon.style.opacity = String(reduced ? Number(scroll > 0) : Math.min(1, scroll / fadeDistance));
-      if (progress > 0 && content.contains(document.activeElement)) icon.focus();
+      if (progress >= 1 && content.contains(document.activeElement)) focusOnCollapse.current = true;
       if (scroll === 0 && document.activeElement === icon) icon.blur();
-      setCollapsed(progress > 0);
-      setIconVisible(scroll > 0);
+      setCollapsed(progress >= 1);
+      setIconVisible(reduced ? scroll > 0 : scroll >= fadeDistance);
     };
     const measure = () => {
       scrollRange = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
@@ -97,7 +105,8 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
         redraw.current(true);
       }}
       onKeyDown={(event) => {
-        if (event.key === "Escape" && window.scrollY > 0) {
+        if (!event.currentTarget.contains(event.target as Node)) return;
+        if (event.key === "Escape" && iconVisible) {
           manualProgress.current = 1;
           redraw.current(true);
           iconRef.current?.focus();
@@ -127,7 +136,11 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
         onClick={() => {
           manualProgress.current = collapsed ? 0 : 1;
           redraw.current(true);
-          if (collapsed) requestAnimationFrame(() => contentRef.current?.querySelector<HTMLElement>("a, button")?.focus());
+          if (collapsed) window.requestAnimationFrame(() => {
+            if (!contentRef.current?.hasAttribute("inert")) {
+              contentRef.current?.querySelector<HTMLElement>("a, button")?.focus({ preventScroll: true });
+            }
+          });
         }}
       >
         <Menu className="size-5" />

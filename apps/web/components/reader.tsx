@@ -649,7 +649,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
         <div
           className={cn(
             "relative mx-auto flex w-full max-w-4xl items-center justify-center overflow-hidden rounded-lg border sm:rounded-xl",
-            isFull && "max-w-[min(56rem,calc(100vw-132px))]",
+            isFull && "max-w-[min(56rem,calc(100vw-132px))] sm:max-w-[min(56rem,calc(100vw-184px))]",
             reduceTransparency
               ? "border-border bg-muted dark:border-zinc-700"
               : "border-border bg-muted/80 dark:border-white/10 dark:bg-muted/90",

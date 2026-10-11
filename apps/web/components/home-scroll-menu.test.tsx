@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { createPortal } from "react-dom";
 import { parseHTML } from "linkedom";
 import { HomeScrollMenu } from "./home-scroll-menu";
 
@@ -28,6 +29,12 @@ beforeEach(() => {
   vi.stubGlobal("window", window);
   vi.stubGlobal("document", window.document);
   vi.stubGlobal("HTMLElement", window.HTMLElement);
+  vi.stubGlobal("requestAnimationFrame", window.requestAnimationFrame);
+  vi.stubGlobal("cancelAnimationFrame", window.cancelAnimationFrame);
+  const focusState: { current: HTMLElement | null } = { current: null };
+  Object.defineProperty(window.document, "activeElement", { get: () => focusState.current ?? window.document.body, configurable: true });
+  window.HTMLElement.prototype.focus = function (this: HTMLElement) { focusState.current = this; };
+  window.HTMLElement.prototype.blur = function (this: HTMLElement) { if (focusState.current === this) focusState.current = null; };
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   container = window.document.getElementById("root")!;
   root = createRoot(container);
@@ -39,9 +46,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function render() {
+async function render(children: React.ReactNode = <a href="/about">About</a>) {
   await act(async () => root.render(
-    <HomeScrollMenu dimmed={false}><a href="/about">About</a></HomeScrollMenu>,
+    <HomeScrollMenu dimmed={false}>{children}</HomeScrollMenu>,
   ));
 }
 
@@ -61,6 +68,51 @@ function hover(enter: boolean, pointerType = "mouse") {
 }
 
 describe("home navigation scroll and hover", () => {
+  it("keeps fading controls out of pointer, keyboard, and screen-reader interaction", async () => {
+    await render();
+    scroll(1);
+    expect(button().tabIndex).toBe(-1);
+    expect(button().style.pointerEvents).toBe("none");
+    expect(button().getAttribute("aria-hidden")).toBe("true");
+    scroll(12);
+    expect(button().tabIndex).toBe(-1);
+    scroll(24);
+    expect(button().getAttribute("tabindex")).toBe("0");
+    expect(button().style.pointerEvents).toBe("auto");
+    expect(button().getAttribute("aria-hidden")).toBe("false");
+  });
+
+  it("preserves visible links and their focus until the collapse finishes", async () => {
+    await render();
+    const link = navigation().querySelector("a")!;
+    link.focus();
+    scroll(48);
+    expect(navigation().hasAttribute("inert")).toBe(false);
+    expect(navigation().getAttribute("aria-hidden")).toBe("false");
+    expect(document.activeElement).toBe(link);
+    scroll(120);
+    expect(navigation().hasAttribute("inert")).toBe(true);
+    expect(document.activeElement).toBe(button());
+    act(() => button().click());
+    act(() => vi.runAllTimers());
+    expect(navigation().hasAttribute("inert")).toBe(false);
+    expect(document.activeElement).toBe(link);
+  });
+
+  it("ignores Escape from a Settings portal but closes on Escape within the menu", async () => {
+    await render(<>
+      <a href="/about">About</a>
+      {createPortal(<button id="settings-portal">Settings dialog</button>, document.body)}
+    </>);
+    scroll(120);
+    hover(true);
+    const escape = () => Object.assign(new window.Event("keydown", { bubbles: true }), { key: "Escape" });
+    act(() => document.getElementById("settings-portal")!.dispatchEvent(escape()));
+    expect(button().getAttribute("aria-expanded")).toBe("true");
+    act(() => navigation().querySelector("a")!.dispatchEvent(escape()));
+    expect(button().getAttribute("aria-expanded")).toBe("false");
+  });
+
   it("does not measure control width on each scroll frame", async () => {
     const width = vi.spyOn(window.HTMLElement.prototype, "offsetWidth", "get");
     await render();
