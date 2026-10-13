@@ -3,7 +3,7 @@
     {
       "source": "functions",
       "codebase": "extract",
-      "predeploy": ["bun run --cwd functions build"]
+      "predeploy": ["pnpm --dir functions run build"]
     }
   ],
   "hosting": {

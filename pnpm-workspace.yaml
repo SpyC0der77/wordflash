@@ -1,0 +1,18 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+onlyBuiltDependencies:
+  - "@parcel/watcher"
+  - "@swc/core"
+  - "@tailwindcss/oxide"
+  - "better-sqlite3"
+  - "electron"
+  - "esbuild"
+  - "msw"
+  - "node-pty"
+  - "protobufjs"
+  - "sharp"
+  - "sqlite3"
+  - "unrs-resolver"
+  - "workerd"

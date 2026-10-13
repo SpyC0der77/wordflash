@@ -1,6 +1,8 @@
+import { writeFile } from "node:fs/promises";
+
 /**
  * Builds the proper-noun gazetteer and common-English denylist.
- * Run from repo root: bun packages/core/scripts/build-proper-nouns.ts
+ * Run from repo root: pnpm exec tsx packages/core/scripts/build-proper-nouns.ts
  *
  * Extra dwell is only for unusual letter patterns. Names that are also
  * common English words (Will, May, Hope) are stripped out.
@@ -197,7 +199,7 @@ for (const word of commonJson.commonWords) {
 
 const sortedCommon = [...commonEnglish].sort((a, b) => a.localeCompare(b));
 const tsWords = sortedCommon.map((word) => `  ${JSON.stringify(word)},`).join("\n");
-await Bun.write(
+await writeFile(
   COMMON_ENGLISH_TS_PATH,
   `${generatedHeader()}
 export const COMMON_ENGLISH_WORDS: ReadonlySet<string> = new Set([
@@ -262,5 +264,5 @@ for (const state of US_STATES) addToken(state, names, commonEnglish, true);
 
 const sorted = [...names].sort((a, b) => a.localeCompare(b));
 const payload = { version: 1, names: sorted };
-await Bun.write(GAZETTEER_PATH, `${JSON.stringify(payload)}\n`);
+await writeFile(GAZETTEER_PATH, `${JSON.stringify(payload)}\n`);
 console.log(`Wrote ${sorted.length} names to ${GAZETTEER_PATH.pathname}`);

@@ -64,4 +64,4 @@ Setting both punctuation delays to zero disables boundary pauses while retaining
 
 ## Validation
 
-Run `bun run test`, `bun run lint`, and `bun run build` from the repository root. Timing regressions cover punctuation and quotes, abbreviation context, numeric formatting, first mentions, bounded adjustments, WPM scaling, invalid settings, and agreement between playback durations and full/partial reading-time estimates.
+Run `pnpm run test`, `pnpm run lint`, and `pnpm run build` from the repository root. Timing regressions cover punctuation and quotes, abbreviation context, numeric formatting, first mentions, bounded adjustments, WPM scaling, invalid settings, and agreement between playback durations and full/partial reading-time estimates.

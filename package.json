@@ -2,23 +2,21 @@
   "name": "wordflash-monorepo",
   "version": "0.1.0",
   "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "scripts": {
-    "dev": "bun run --filter wordflash dev",
-    "dev:web": "bun run --filter wordflash dev",
-    "build": "bun run --filter @wordflash/core build && bun run --filter wordflash build",
-    "build:web": "bun run --filter @wordflash/core build && bun run --filter wordflash build",
-    "lint": "bun run --filter '*' lint",
-    "test": "bun run --filter '*' test",
-    "prepare": "bun run --filter @wordflash/core build"
+    "dev": "pnpm --filter wordflash run dev",
+    "dev:web": "pnpm --filter wordflash run dev",
+    "build": "pnpm --filter @wordflash/core run build && pnpm --filter wordflash run build",
+    "build:web": "pnpm --filter @wordflash/core run build && pnpm --filter wordflash run build",
+    "lint": "pnpm -r --if-present run lint",
+    "test": "pnpm -r --if-present run test",
+    "prepare": "pnpm --filter @wordflash/core run build"
   },
   "devDependencies": {
-    "typescript": "^5"
+    "typescript": "^5",
+    "tsx": "^4.20.6"
   },
   "dependencies": {
     "nuqs": "^2.8.9"
-  }
+  },
+  "packageManager": "pnpm@10.29.3"
 }

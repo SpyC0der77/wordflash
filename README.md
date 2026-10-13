@@ -39,43 +39,43 @@ wordflash/
 ├── apps/web/       Next.js app
 ├── functions/      Firebase Cloud Function for /api/extract
 ├── packages/core/  Word timing, parsing, focal index
-└── package.json    Bun workspaces
+└── package.json    pnpm workspaces
 ```
 
 ## Development
 
-Use [Bun](https://bun.sh) for the workspace commands and Node.js 22 for the web and Firebase runtimes. The repo uses Bun workspaces; Node alone does not run the commands below.
+Use pnpm for the workspace commands and Node.js 22 or newer for the web and Firebase runtimes.
 
 ```bash
-bun install
-bun run dev
+pnpm install
+pnpm run dev
 ```
 
 Dev server: [http://localhost:3000](http://localhost:3000)
 
 | Command | What it does |
 |---------|--------------|
-| `bun run dev` | Web dev server |
-| `bun run build` | Build core + web |
-| `bun run lint` | Lint all packages |
-| `bun run test` | Run all tests |
+| `pnpm run dev` | Web dev server |
+| `pnpm run build` | Build core + web |
+| `pnpm run lint` | Lint all packages |
+| `pnpm run test` | Run all tests |
 
 Watch tests in one package:
 
 ```bash
-cd packages/core && bun run test:watch
-cd apps/web && bun run test:watch
+cd packages/core && pnpm run test:watch
+cd apps/web && pnpm run test:watch
 ```
 
 Production build:
 
 ```bash
-bun run build
-bun run --filter wordflash start
+pnpm run build
+pnpm --filter wordflash run start
 ```
 
 ## Deploy
 
 **Vercel:** Create a project from this repo and set **Root Directory** to `apps/web`. See the [Next.js deploy docs](https://nextjs.org/docs/app/building-your-application/deploying) if you need the details.
 
-**Firebase:** `firebase.json` hosts the web app and routes `/api/extract` to the `extract` Cloud Function in `functions/`. Install the Functions dependencies with `bun install --cwd functions` and authenticate the Firebase CLI before running `firebase deploy`. The predeploy hook builds the Functions code. Review `.firebaserc` and choose your own Firebase project before deployment.
+**Firebase:** `firebase.json` hosts the web app and routes `/api/extract` to the `extract` Cloud Function in `functions/`. Install the Functions dependencies with `pnpm --dir functions install` and authenticate the Firebase CLI before running `firebase deploy`. The predeploy hook builds the Functions code. Review `.firebaserc` and choose your own Firebase project before deployment.
