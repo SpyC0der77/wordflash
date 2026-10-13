@@ -62,6 +62,7 @@ import {
 } from "@/lib/reader";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { normalizeArticleUrl } from "@/lib/article-url";
 
 interface MediaPreview {
   src: string;
@@ -82,10 +83,18 @@ const ArticleBody = forwardRef<HTMLDivElement, ArticleBodyProps>(
     ref,
   ) {
     const sanitizedHtml = useMemo(
-      () => DOMPurify.sanitize(html, {
-        ALLOWED_ATTR: ["href", "src", "alt", "title", "data-word-index"],
-        ADD_ATTR: ["data-word-index"],
-      }),
+      () => {
+        const content = document.createElement("div");
+        content.innerHTML = DOMPurify.sanitize(html, {
+          ALLOWED_ATTR: ["href", "src", "alt", "title", "data-word-index"],
+          ADD_ATTR: ["data-word-index"],
+        });
+        for (const link of content.querySelectorAll("a[href]")) {
+          link.setAttribute("target", "_blank");
+          link.setAttribute("rel", "noopener noreferrer");
+        }
+        return content.innerHTML;
+      },
       [html],
     );
     const prevHighlightRef = useRef<HTMLElement[]>([]);
@@ -113,6 +122,8 @@ const ArticleBody = forwardRef<HTMLDivElement, ArticleBodyProps>(
         }
       }
 
+      // Links open separately; following one must not also move the reading position.
+      if ((e.target as HTMLElement).closest("a[href]")) return;
       const target = (e.target as HTMLElement).closest("[data-word-index]");
       if (target) {
         const index = parseInt(
@@ -201,7 +212,7 @@ function loadReadingPositions(): Record<string, number> {
     const raw = localStorage.getItem(READING_POSITIONS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Record<string, number>;
-      if (parsed && typeof parsed === "object") return parsed;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
     }
     // Migrate from legacy single-position format
     const legacyRaw =
@@ -226,7 +237,7 @@ function loadReadingPositions(): Record<string, number> {
     const iosRaw = localStorage.getItem(LEGACY_READING_POSITIONS_KEY);
     if (iosRaw) {
       const parsed = JSON.parse(iosRaw) as Record<string, number>;
-      if (parsed && typeof parsed === "object") {
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
         localStorage.setItem(READING_POSITIONS_KEY, iosRaw);
         localStorage.removeItem(LEGACY_READING_POSITIONS_KEY);
         return parsed;
@@ -365,6 +376,7 @@ export default function ReaderPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [wordIndex, setWordIndex] = useState(0);
+  const [pauseRequest, setPauseRequest] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const [showArticleOnMobile, setShowArticleOnMobile] = useState(false);
@@ -440,7 +452,6 @@ export default function ReaderPage() {
       return;
     }
     setWrappedContent(wrapWordsInHtml(processedContent));
-    setShowArticleOnMobile(false);
   }, [processedContent]);
 
   const pendingPosition = useRef<{ url: string; index: number } | null>(null);
@@ -477,6 +488,7 @@ export default function ReaderPage() {
 
   function handleWordClick(index: number) {
     setWordIndex(index);
+    setPauseRequest((request) => request + 1);
     setShowArticleOnMobile(false);
   }
 
@@ -530,8 +542,9 @@ export default function ReaderPage() {
   }, [article, isCompactView]);
 
   const loadArticle = useCallback(async (articleUrl: string) => {
-    const trimmed = articleUrl.trim();
-    if (!trimmed) return;
+    let trimmed: string;
+    try { trimmed = normalizeArticleUrl(articleUrl); }
+    catch (err) { setError((err as Error).message); return; }
 
     requestRef.current?.abort();
     const controller = new AbortController();
@@ -539,8 +552,6 @@ export default function ReaderPage() {
     flushPosition();
     setIsLoading(true);
     setError(null);
-    setArticle(null);
-    setWrappedContent(null);
 
     try {
       const res = await fetch("/api/extract", {
@@ -550,7 +561,9 @@ export default function ReaderPage() {
         signal: controller.signal,
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => {
+        throw new Error("The article service is unavailable. Try again in a moment, or paste the text on the home page.");
+      });
       if (controller.signal.aborted) return;
 
       if (!res.ok) {
@@ -560,12 +573,14 @@ export default function ReaderPage() {
       const wordCount = parseWords(extractTextFromHtml(
         data.content ?? "",
       )).length;
+      if (!wordCount) throw new Error("This page has no readable text. Try another article, or paste the text on the home page.");
       const storedIndex = getReadingPositionForUrl(trimmed);
       const restoredIndex = typeof storedIndex === "number" && Number.isFinite(storedIndex)
         ? Math.min(Math.max(0, Math.floor(storedIndex)), Math.max(0, wordCount - 1)) : 0;
       setWordIndex(restoredIndex);
       setLoadedArticleUrl(trimmed);
       setArticle(data);
+      setShowArticleOnMobile(false);
       if (restoredIndex > 0) toast.info("Resumed from previous session");
 
       const entry: PreviousArticle = {
@@ -584,7 +599,9 @@ export default function ReaderPage() {
       });
     } catch (err) {
       if (controller.signal.aborted) return;
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(err instanceof TypeError
+        ? "Could not connect. Check your connection and try again."
+        : err instanceof Error ? err.message : "Could not load this article. Try again.");
     } finally {
       if (requestRef.current === controller) setIsLoading(false);
     }
@@ -596,7 +613,9 @@ export default function ReaderPage() {
       if (stored) {
         const parsed = JSON.parse(stored) as PreviousArticle[];
         if (Array.isArray(parsed)) {
-          setPreviousArticles(parsed);
+          setPreviousArticles(parsed.filter((entry) =>
+            entry && typeof entry.url === "string" && typeof entry.title === "string",
+          ).slice(0, PREVIOUS_ARTICLES_MAX));
         }
       }
     } catch {
@@ -610,8 +629,18 @@ export default function ReaderPage() {
     if (paramUrl) {
       setUrl(paramUrl);
       loadArticle(paramUrl);
+    } else {
+      flushPosition();
+      requestRef.current?.abort();
+      requestRef.current = null;
+      setIsLoading(false);
+      setUrl("");
+      setError(null);
+      setArticle(null);
+      setLoadedArticleUrl("");
+      setWordIndex(0);
     }
-  }, [urlFromQuery, loadArticle]);
+  }, [urlFromQuery, loadArticle, flushPosition]);
 
   // Migrate legacy `u` param to `url` on mount
   useEffect(() => {
@@ -632,11 +661,12 @@ export default function ReaderPage() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const trimmed = url.trim();
-    if (!trimmed) return;
+    let trimmed: string;
+    try { trimmed = normalizeArticleUrl(url); }
+    catch (err) { setError((err as Error).message); return; }
     setUrl(trimmed);
     if (trimmed === urlFromQuery) loadArticle(trimmed);
-    else setQueryStates({ url: trimmed });
+    else setQueryStates({ url: trimmed }, { history: "push" });
   }
 
   const handleCopyLink = useCallback(async () => {
@@ -735,7 +765,13 @@ export default function ReaderPage() {
             className="order-last flex w-full flex-1 gap-2 sm:order-none sm:w-auto"
           >
             <Input
-              type="url"
+              type="text"
+              inputMode="url"
+              aria-label="Article link"
+              aria-invalid={!!error}
+              aria-describedby={error ? "article-load-error" : undefined}
+              autoCapitalize="none"
+              autoCorrect="off"
               placeholder="Enter article URL..."
               value={url}
               onChange={(e) => setUrl(e.target.value)}
@@ -752,6 +788,13 @@ export default function ReaderPage() {
                 "Read"
               )}
             </Button>
+            {isLoading && (
+              <Button type="button" variant="outline" onClick={() => {
+                requestRef.current?.abort();
+                requestRef.current = null;
+                setIsLoading(false);
+              }}>Cancel</Button>
+            )}
           </form>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -776,7 +819,8 @@ export default function ReaderPage() {
                         key={a.url}
                         onClick={() => {
                           setUrl(a.url);
-                          setQueryStates({ url: a.url });
+                          if (a.url === urlFromQuery) loadArticle(a.url);
+                          else setQueryStates({ url: a.url }, { history: "push" });
                         }}
                         className="max-w-[min(18rem,85vw)] cursor-pointer"
                       >
@@ -1011,10 +1055,12 @@ export default function ReaderPage() {
         }
       >
         {error && (
-          <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-destructive">
-            {error}
+          <div id="article-load-error" role="alert" className="mb-4 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-destructive">
+            <p>{error}</p>
+            <Link href="/" className="mt-2 inline-block underline underline-offset-4">Paste text instead</Link>
           </div>
         )}
+        {isLoading && <p role="status" className="mb-4 text-sm text-muted-foreground">Loading article...</p>}
 
         {article && (
           <article className="reader-content flex min-h-0 flex-1 flex-col">
@@ -1094,6 +1140,8 @@ export default function ReaderPage() {
                   <Reader
                     key={article.content}
                     variant="panel"
+                    playbackBlocked={isSettingsOpen || !!mediaPreview || isLoading}
+                    pauseRequest={pauseRequest}
                     text={articleText}
                     wordsPerMinute={effectiveWpm}
                     onWordsPerMinuteChange={handleWordsPerMinuteChange}
@@ -1132,6 +1180,8 @@ export default function ReaderPage() {
           <Reader
             key={article.content}
             variant="panel"
+            playbackBlocked={isSettingsOpen || !!mediaPreview || isLoading}
+            pauseRequest={pauseRequest}
             text={articleText}
             wordsPerMinute={effectiveWpm}
             onWordsPerMinuteChange={handleWordsPerMinuteChange}

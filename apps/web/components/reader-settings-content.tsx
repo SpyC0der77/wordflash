@@ -251,6 +251,7 @@ export function ReaderSettingsContent({
               label={`Sentence end (${sentenceEndDurationMs}ms)`}
             >
               <Slider
+                aria-label="Sentence end pause"
                 id={`${idPrefix}sentence-end`}
                 min={0}
                 max={1000}
@@ -264,6 +265,7 @@ export function ReaderSettingsContent({
               label={`Speech break (${speechBreakDurationMs}ms)`}
             >
               <Slider
+                aria-label="Speech break pause"
                 id={`${idPrefix}speech-break`}
                 min={0}
                 max={1000}
@@ -291,6 +293,7 @@ export function ReaderSettingsContent({
                   label={`Lead-in (${punctuationGlyphLeadMs}ms)`}
                 >
                   <Slider
+                    aria-label="Punctuation lead-in"
                     id={`${idPrefix}glyph-lead`}
                     min={0}
                     max={200}
@@ -313,6 +316,7 @@ export function ReaderSettingsContent({
                     label={`Visible for (${punctuationGlyphDurationMs}ms)`}
                   >
                     <Slider
+                      aria-label="Punctuation visible duration"
                       id={`${idPrefix}glyph-duration`}
                       min={0}
                       max={1000}

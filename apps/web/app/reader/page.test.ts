@@ -8,7 +8,7 @@ const state = vi.hoisted(() => ({
   query: { url: null as string | null, wpm: 0, theme: null as string | null, fontSize: null as string | null },
   setQuery: vi.fn(), reset: vi.fn(), setTheme: vi.fn(), sanitize: vi.fn((html: string) => html),
   toast: { info: vi.fn(), success: vi.fn(), error: vi.fn() },
-  reader: null as null | { controlledWordIndex: number; onWordIndexChange: (index: number) => void; onPlaybackChange: (playing: boolean) => void },
+  reader: null as null | { controlledWordIndex: number; pauseRequest: number; onWordIndexChange: (index: number) => void; onPlaybackChange: (playing: boolean) => void },
 }));
 vi.mock("nuqs", () => ({ useQueryStates: () => [state.query, state.setQuery] }));
 vi.mock("./reader-search-params", () => ({ readerSearchParams: {} }));
@@ -97,6 +97,83 @@ async function render() { await act(async () => root.render(React.createElement(
 function saved() { return JSON.parse(storage.get(POSITIONS) ?? "{}"); }
 
 describe("article session reliability", () => {
+  it("opens article links separately without seeking to the linked word", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({
+      title: "Linked article", content: '<html><body><p>one <a href="https://example.org/reference">reference</a> three</p></body></html>',
+    }) });
+    await render();
+    const link = container.querySelector('.reader-article a')!;
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+    act(() => link.querySelector("span")!.dispatchEvent(new window.Event("click", { bubbles: true, cancelable: true })));
+    expect(state.reader?.controlledWordIndex).toBe(0);
+    expect(state.reader?.pauseRequest).toBe(0);
+  });
+
+  it("requests a pause every time the user chooses an article word", async () => {
+    fetchMock.mockResolvedValue(response("Article A"));
+    await render();
+    const word = container.querySelector('[data-word-index="2"]')!;
+    act(() => word.dispatchEvent(new window.Event("click", { bubbles: true })));
+    expect(state.reader?.controlledWordIndex).toBe(2);
+    expect(state.reader?.pauseRequest).toBe(1);
+    act(() => container.querySelector('[data-word-index="2"]')!.dispatchEvent(new window.Event("click", { bubbles: true })));
+    expect(state.reader?.pauseRequest).toBe(2);
+  });
+  it("adds a submitted article to browser history", async () => {
+    fetchMock.mockResolvedValue(response("Article A"));
+    await render();
+    const input = container.querySelector("input")!;
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!.call(input, URL_B);
+    act(() => input.dispatchEvent(new window.Event("input", { bubbles: true })));
+    await act(async () => container.querySelector("form")!.dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true })));
+    expect(state.setQuery).toHaveBeenCalledWith({ url: URL_B }, { history: "push" });
+  });
+
+  it("clears the article when Back returns to the empty reader", async () => {
+    fetchMock.mockResolvedValue(response("Article A"));
+    await render();
+    act(() => state.reader?.onWordIndexChange(3));
+    state.query = { ...state.query, url: null };
+    await render();
+    expect(container.querySelector("h1")).toBeNull();
+    expect(container.querySelector("input")?.value).toBe("");
+    expect(saved()[URL_A]).toBe(3);
+  });
+
+  it("aborts an in-flight load when Back removes the article URL", async () => {
+    let resolve!: (value: ReturnType<typeof response>) => void;
+    fetchMock.mockImplementation(() => new Promise((r) => { resolve = r; }));
+    await render();
+    const signal = fetchMock.mock.calls[0][1].signal as AbortSignal;
+    state.query = { ...state.query, url: null };
+    await render();
+    expect(signal.aborted).toBe(true);
+    await act(async () => resolve(response("Late article")));
+    expect(container.querySelector("h1")).toBeNull();
+    expect(container.textContent).not.toContain("Loading article...");
+  });
+  it("keeps the current article and its progress when the next article fails", async () => {
+    fetchMock.mockResolvedValueOnce(response("Article A"));
+    await render();
+    act(() => state.reader?.onWordIndexChange(3));
+    fetchMock.mockResolvedValueOnce({ ok: false, json: async () => ({ error: "Unavailable" }) });
+    state.query = { ...state.query, url: URL_B };
+    await render();
+    expect(container.querySelector("h1")?.textContent).toBe("Article A");
+    expect(state.reader?.controlledWordIndex).toBe(3);
+    expect(container.textContent).toContain("Unavailable");
+    expect(container.textContent).toContain("Paste text instead");
+    act(() => vi.advanceTimersByTime(1000));
+    expect(saved()[URL_A]).toBe(3);
+    expect(saved()[URL_B]).toBeUndefined();
+  });
+  it("rejects a successful response with no readable text", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ title: "Empty", content: "<p></p>" }) });
+    await render();
+    expect(container.textContent).toContain("no readable text");
+    expect(state.reader).toBeNull();
+  });
   it("restores styled words using the same indices as playback and highlights all fragments", async () => {
     storage.set(POSITIONS, JSON.stringify({ [URL_A]: 1 }));
     fetchMock.mockResolvedValue({ ok: true, json: async () => ({
