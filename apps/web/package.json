@@ -18,7 +18,7 @@
     "@wordflash/core": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "dompurify": "^3.2.3",
+    "dompurify": "^3.4.16",
     "framer-motion": "^12.34.3",
     "linkedom": "^0.18.12",
     "lucide-react": "^0.575.0",
