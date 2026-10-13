@@ -60,6 +60,45 @@ function renderReader(text: string) {
 }
 
 describe("reader playback timing", () => {
+  it("pauses for an external seek even when the selected word stays the same", () => {
+    const render = (pauseRequest: number) => act(() => root.render(React.createElement(Reader, {
+      variant: "test", text: "hello world again", wordsPerMinute: 250, pauseRequest,
+    })));
+    render(0);
+    click();
+    render(1);
+    expect(button().textContent).toBe("Play");
+    advance(2000);
+    expect(container.textContent).toContain("1/3");
+    click();
+    expect(button().textContent).toBe("Pause");
+    render(2);
+    expect(button().textContent).toBe("Play");
+  });
+  it("pauses when covered and stays paused when the covering view closes", () => {
+    renderReader("hello world again");
+    click();
+    act(() => root.render(React.createElement(Reader, {
+      variant: "test", text: "hello world again", wordsPerMinute: 250, playbackBlocked: true,
+    })));
+    expect(button().textContent).toBe("Play");
+    advance(2000);
+    act(() => root.render(React.createElement(Reader, {
+      variant: "test", text: "hello world again", wordsPerMinute: 250, playbackBlocked: false,
+    })));
+    expect(button().textContent).toBe("Play");
+    click();
+    expect(button().textContent).toBe("Pause");
+  });
+  it("pauses when the reader is hidden instead of advancing unseen words", () => {
+    const { onWordIndexChange } = renderReader("hello world again");
+    click();
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    act(() => document.dispatchEvent(new window.Event("visibilitychange")));
+    expect(button().textContent).toBe("Play");
+    advance(2000);
+    expect(onWordIndexChange).toHaveBeenLastCalledWith(0);
+  });
   it("ignores repeated Space events while allowing the first press", () => {
     renderReader("hello world");
     const press = (repeat: boolean) => {

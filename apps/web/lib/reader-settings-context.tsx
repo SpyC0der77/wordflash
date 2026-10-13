@@ -54,6 +54,9 @@ const DEFAULTS: StoredSettings = {
   centerPunctuationTittleVertically: false,
 };
 
+// Keep preferences usable for this session if storage is blocked or full.
+let unsavedSettings: StoredSettings | null = null;
+
 function parseShowPunctuationGlyph(
   punctuationCue: unknown,
   showPunctuationGlyph: unknown,
@@ -66,6 +69,7 @@ function parseShowPunctuationGlyph(
 
 function loadStored(): StoredSettings {
   if (typeof window === "undefined") return DEFAULTS;
+  if (unsavedSettings) return unsavedSettings;
   try {
     let raw = localStorage.getItem(STORAGE_KEY);
     const fromLegacy = !raw && !!localStorage.getItem(LEGACY_STORAGE_KEY);
@@ -148,8 +152,9 @@ function loadStored(): StoredSettings {
 function saveStored(settings: StoredSettings) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    unsavedSettings = null;
   } catch {
-    // Ignore
+    unsavedSettings = settings;
   }
 }
 
@@ -224,6 +229,25 @@ const ReaderSettingsContext = createContext<ReaderSettingsContextValue | null>(
 
 export function ReaderSettingsProvider({ children }: { children: React.ReactNode }) {
   const settings = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  React.useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== STORAGE_KEY && event.key !== LEGACY_STORAGE_KEY) return;
+      if (unsavedSettings) {
+        // Clears and legacy migration events must not erase the only saved copy.
+        if (event.key !== STORAGE_KEY || !event.newValue) return;
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw || raw !== event.newValue) return;
+          const persisted = JSON.parse(raw);
+          if (!persisted || typeof persisted !== "object" || Array.isArray(persisted)) return;
+        } catch { return; }
+      }
+      unsavedSettings = null;
+      emitChange();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   const setFontSize = useCallback((fontSize: FontSizeKey) => {
     updateStored((s) => ({ ...s, fontSize }));

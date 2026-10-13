@@ -9,6 +9,7 @@ import React, {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { Dialog } from "radix-ui";
 import { PunctuationGlyph } from "@/components/punctuation-glyph";
@@ -56,6 +57,12 @@ import { cn } from "@/lib/utils";
 
 const SAMPLE_TEXT =
   "Paste your own text below, focus on the highlighted letter, press play, and let the words flow. Does this feel fast? Try an exclamation too!";
+const DRAFT_KEY = "wordflash-text-draft";
+const subscribeToDraft = () => () => {};
+function readDraft() {
+  try { return sessionStorage.getItem(DRAFT_KEY) ?? SAMPLE_TEXT; }
+  catch { return SAMPLE_TEXT; }
+}
 
 const INPUT_PANEL_CLASS_NAME =
   "h-full min-h-44 w-full overflow-y-auto rounded-md border border-input bg-background px-3 py-3 text-base md:text-base leading-7 whitespace-pre-wrap break-words dark:bg-background shadow-none";
@@ -83,6 +90,10 @@ export {
 };
 
 interface ReaderBaseProps {
+  /** Increment after a user seeks in another view, even if the selected word is unchanged. */
+  pauseRequest?: number;
+  /** Pause when another view covers the words. Closing it does not resume playback. */
+  playbackBlocked?: boolean;
   wordsPerMinute?: number;
   /** When `wordsPerMinute` is controlled by the parent, wire this so the WPM control updates state (e.g. URL + persisted settings). */
   onWordsPerMinuteChange?: (value: number) => void;
@@ -127,8 +138,9 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   const isTest = props.variant === "test";
   const controlledWordIndex = props.controlledWordIndex;
 
-  const [inputText, setInputText] = useState(
-    isFull ? SAMPLE_TEXT : (props as ReaderPanelProps | ReaderTestProps).text,
+  const storedDraft = useSyncExternalStore(subscribeToDraft, readDraft, () => SAMPLE_TEXT);
+  const [inputText, setInputText] = useState<string | null>(
+    isFull ? null : (props as ReaderPanelProps | ReaderTestProps).text,
   );
   const [wordIndex, setWordIndex] = useState(() => controlledWordIndex ?? 0);
   const wordsPerMinute = props.wordsPerMinute ?? readerSettings.wordsPerMinute;
@@ -138,12 +150,24 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
       ? () => {}
       : readerSettings.setWordsPerMinute);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [previousPauseRequest, setPreviousPauseRequest] = useState(props.pauseRequest);
+  if (previousPauseRequest !== props.pauseRequest) {
+    setPreviousPauseRequest(props.pauseRequest);
+    setIsPlaying(false);
+  }
+  useEffect(() => {
+    const pauseWhenHidden = () => { if (document.hidden) setIsPlaying(false); };
+    document.addEventListener("visibilitychange", pauseWhenHidden);
+    return () => document.removeEventListener("visibilitychange", pauseWhenHidden);
+  }, []);
   const onPlaybackChange = props.onPlaybackChange;
   useEffect(() => {
     onPlaybackChange?.(isPlaying);
   }, [isPlaying, onPlaybackChange]);
   const [completedText, setCompletedText] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const playbackBlocked = isSettingsOpen || Boolean(props.playbackBlocked);
+  if (playbackBlocked && isPlaying) setIsPlaying(false);
   const [inputTab, setInputTab] = useState<"edit" | "scrub">("edit");
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const scrubContainerRef = useRef<HTMLDivElement>(null);
@@ -211,7 +235,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
       PAUSE_PUNCTUATION_DELAY_MS_AT_250_WPM);
 
   const text = isFull
-    ? inputText
+    ? (inputText ?? storedDraft)
     : (props as ReaderPanelProps | ReaderTestProps).text;
   const { words, hasLineBreakAfter, newlinesAfter, leadingNewlines, prefixBefore } =
     useMemo(() => parseWordsDetailed(text), [text]);
@@ -459,7 +483,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   }, [isFinished, onComplete]);
 
   function handlePlayPauseRestart() {
-    if (words.length === 0) return;
+    if (words.length === 0 || playbackBlocked) return;
     if (isFinished) {
       setEffectiveWordIndex(0);
       setIsPlaying(true);
@@ -497,6 +521,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
         return;
       }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (el?.closest("[role=tablist], [role=slider], [role=menu], [role=menuitem]")) return;
 
       const {
         handlePlayPauseRestart: playPause,
@@ -549,6 +574,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
 
   function handleTextChange(value: string) {
     setInputText(value);
+    try { sessionStorage.setItem(DRAFT_KEY, value); } catch { /* Keep the in-memory draft. */ }
     setEffectiveWordIndex(0);
     setIsPlaying(false);
   }
@@ -736,7 +762,9 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
               max={Math.max(0, words.length - 1)}
               step={1}
               value={[activeWordIndex]}
-              onValueChange={([v]) => setEffectiveWordIndex(v ?? 0)}
+              aria-label="Reading position"
+              disabled={words.length < 2}
+              onValueChange={([v]) => { setEffectiveWordIndex(v ?? 0); setIsPlaying(false); }}
               className="cursor-pointer"
             />
           </div>
@@ -766,6 +794,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
             max={1200}
             step={50}
             unit="wpm"
+            label="Reading speed"
           />
         )}
       </section>
@@ -980,12 +1009,20 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
             htmlFor={inputTab === "edit" ? "reader-text" : undefined}
             className="text-sm font-medium text-muted-foreground"
           >
-            Text to read{words.length > 0 && ` (${words.length} words)`}
+            Text to read{words.length > 0 && ` (${words.length} ${words.length === 1 ? "word" : "words"})`}
           </label>
           <div
             ref={tabListRef}
             role="tablist"
             aria-label="Input mode"
+            onKeyDown={(event) => {
+              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+              event.preventDefault();
+              const next = event.key === "Home" ? "edit" : event.key === "End" ? "scrub"
+                : inputTab === "edit" ? "scrub" : "edit";
+              setInputTab(next);
+              (next === "edit" ? editTabRef : scrubTabRef).current?.focus();
+            }}
             className="relative flex rounded-lg border border-border bg-muted/50 p-0.5"
           >
             {pillStyle && (
@@ -1010,6 +1047,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
               type="button"
               role="tab"
               aria-selected={inputTab === "edit"}
+              tabIndex={inputTab === "edit" ? 0 : -1}
               aria-controls="reader-text-panel"
               id="reader-edit-tab"
               onClick={() => setInputTab("edit")}
@@ -1027,7 +1065,8 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
               type="button"
               role="tab"
               aria-selected={inputTab === "scrub"}
-              aria-controls="reader-scrub-panel"
+              tabIndex={inputTab === "scrub" ? 0 : -1}
+              aria-controls="reader-text-panel"
               id="reader-scrub-tab"
               onClick={() => setInputTab("scrub")}
               className={cn(
@@ -1041,25 +1080,22 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
             </button>
           </div>
         </div>
-        <div className="h-44 min-h-44 resize-y overflow-hidden">
+        <div id="reader-text-panel" role="tabpanel" aria-labelledby={inputTab === "edit" ? "reader-edit-tab" : "reader-scrub-tab"} className="h-44 min-h-44 resize-y overflow-hidden">
           {inputTab === "edit" ? (
             <Textarea
               id="reader-text"
-              value={inputText}
+              value={inputText ?? storedDraft}
               onChange={(e) => handleTextChange(e.target.value)}
               placeholder="Paste text here..."
               className={cn(
                 INPUT_PANEL_CLASS_NAME,
                 "field-sizing-fixed resize-none focus-visible:ring-inset",
               )}
-              aria-labelledby="reader-edit-tab"
+              aria-label="Text to read"
             />
           ) : (
             <div
               ref={scrubContainerRef}
-              id="reader-scrub-panel"
-              role="tabpanel"
-              aria-labelledby="reader-scrub-tab"
               className={cn(
                 INPUT_PANEL_CLASS_NAME,
                 "cursor-pointer [&_[data-word-index]]:cursor-pointer [&_[data-word-index]]:rounded-sm [&_[data-word-index]]:transition-colors [&_[data-word-index]]:hover:bg-muted/50",

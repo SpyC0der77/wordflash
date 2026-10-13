@@ -95,6 +95,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== STORAGE_KEY) return;
+      let storedTheme: string | null;
+      try { storedTheme = localStorage.getItem(STORAGE_KEY); }
+      catch { return; } // Keep the current session theme if storage is unavailable.
+      applyTheme(isValidTheme(storedTheme) ? storedTheme : DEFAULT_THEME);
+      emitChange();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  useEffect(() => {
     if (theme !== "system") return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = () => {
