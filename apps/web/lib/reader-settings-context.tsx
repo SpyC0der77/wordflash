@@ -232,6 +232,16 @@ export function ReaderSettingsProvider({ children }: { children: React.ReactNode
   React.useEffect(() => {
     const onStorage = (event: StorageEvent) => {
       if (event.key !== null && event.key !== STORAGE_KEY && event.key !== LEGACY_STORAGE_KEY) return;
+      if (unsavedSettings) {
+        // Clears and legacy migration events must not erase the only saved copy.
+        if (event.key !== STORAGE_KEY || !event.newValue) return;
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw || raw !== event.newValue) return;
+          const persisted = JSON.parse(raw);
+          if (!persisted || typeof persisted !== "object" || Array.isArray(persisted)) return;
+        } catch { return; }
+      }
       unsavedSettings = null;
       emitChange();
     };

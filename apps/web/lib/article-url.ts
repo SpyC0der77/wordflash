@@ -3,7 +3,7 @@ export function normalizeArticleUrl(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) throw new Error("Enter an article link to read.");
   const candidate = trimmed.startsWith("//") ? `https:${trimmed}`
-    : /^[\w.-]+\.[a-z]{2,}(?::\d+)?(?:[/?#]|$)/i.test(trimmed) ? `https://${trimmed}` : trimmed;
+    : /^[^\s/?#:@]+[.\u3002\uff0e\uff61][^\s/?#:@]+(?::\d+)?(?:[/?#]|$)/u.test(trimmed) ? `https://${trimmed}` : trimmed;
   let url: URL;
   try { url = new URL(candidate); }
   catch { throw new Error("Enter a website address, such as example.com/article."); }

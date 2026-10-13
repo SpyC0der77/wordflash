@@ -10,6 +10,12 @@ let settings: ReturnType<typeof useReaderSettings>;
 let blocked: boolean;
 let storage: Map<string, string>;
 
+function notifyStorage(key: string | null, newValue: string | null = null) {
+  const event = new window.Event("storage");
+  Object.assign(event, { key, newValue });
+  act(() => window.dispatchEvent(event));
+}
+
 function Preferences() {
   const preferences = useReaderSettings();
   React.useEffect(() => { settings = preferences; }, [preferences]);
@@ -47,6 +53,30 @@ afterEach(() => {
 });
 
 describe("preferences without browser storage", () => {
+  it.each([null, "speedreader-reader-settings", "wordflash-reader-settings"])("retains unsaved preferences after %s storage is removed", (key) => {
+    blocked = true;
+    act(() => settings.setWordsPerMinute(450));
+    act(() => settings.setFontSize("xl"));
+    notifyStorage(key);
+    expect(container.textContent).toBe("450 xl 250");
+  });
+
+  it("retains the fallback if a primary-key event cannot be read", () => {
+    blocked = true;
+    act(() => settings.setWordsPerMinute(450));
+    notifyStorage("wordflash-reader-settings", JSON.stringify({ wordsPerMinute: 650 }));
+    expect(container.textContent).toBe("450 md 250");
+  });
+
+  it("accepts a valid persisted replacement for unsaved preferences", () => {
+    blocked = true;
+    act(() => settings.setWordsPerMinute(450));
+    blocked = false;
+    const replacement = JSON.stringify({ wordsPerMinute: 650 });
+    storage.set("wordflash-reader-settings", replacement);
+    notifyStorage("wordflash-reader-settings", replacement);
+    expect(container.textContent).toBe("650 md 250");
+  });
   it("updates when another tab changes or clears preferences", () => {
     const notify = (key: string | null) => {
       const event = new window.Event("storage");

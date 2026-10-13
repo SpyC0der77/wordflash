@@ -97,7 +97,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
       if (event.key !== null && event.key !== STORAGE_KEY) return;
-      applyTheme(isValidTheme(event.newValue) ? event.newValue : DEFAULT_THEME);
+      let storedTheme: string | null;
+      try { storedTheme = localStorage.getItem(STORAGE_KEY); }
+      catch { return; } // Keep the current session theme if storage is unavailable.
+      applyTheme(isValidTheme(storedTheme) ? storedTheme : DEFAULT_THEME);
       emitChange();
     };
     window.addEventListener("storage", onStorage);

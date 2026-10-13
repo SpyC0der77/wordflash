@@ -3,6 +3,7 @@
 import DOMPurify from "dompurify";
 import {
   forwardRef,
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -77,7 +78,7 @@ interface ArticleBodyProps {
   scrollToWord?: (span: HTMLElement) => void;
 }
 
-const ArticleBody = forwardRef<HTMLDivElement, ArticleBodyProps>(
+const ArticleBody = memo(forwardRef<HTMLDivElement, ArticleBodyProps>(
   function ArticleBody(
     { html, wordIndex, onWordClick, onMediaClick, scrollToWord },
     ref,
@@ -187,7 +188,7 @@ const ArticleBody = forwardRef<HTMLDivElement, ArticleBodyProps>(
       />
     );
   },
-);
+));
 
 interface ArticleData {
   title: string | null;
@@ -446,14 +447,6 @@ export default function ReaderPage() {
     [processedContent],
   );
 
-  useEffect(() => {
-    if (!processedContent) {
-      setWrappedContent(null);
-      return;
-    }
-    setWrappedContent(wrapWordsInHtml(processedContent));
-  }, [processedContent]);
-
   const pendingPosition = useRef<{ url: string; index: number } | null>(null);
   useEffect(() => {
     if (article && loadedArticleUrl) {
@@ -486,13 +479,13 @@ export default function ReaderPage() {
     };
   }, [flushPosition]);
 
-  function handleWordClick(index: number) {
+  const handleWordClick = useCallback((index: number) => {
     setWordIndex(index);
     setPauseRequest((request) => request + 1);
     setShowArticleOnMobile(false);
-  }
+  }, []);
 
-  function handleMediaClick(media: MediaPreview) {
+  const handleMediaClick = useCallback((media: MediaPreview) => {
     try {
       const url = new URL(media.src, window.location.href);
       if (!["http:", "https:"].includes(url.protocol)) return;
@@ -500,7 +493,7 @@ export default function ReaderPage() {
     } catch {
       // Invalid URL, ignore
     }
-  }
+  }, []);
 
   const COMPACT_VIEW_MIN_HEIGHT = 650;
 
@@ -542,11 +535,16 @@ export default function ReaderPage() {
   }, [article, isCompactView]);
 
   const loadArticle = useCallback(async (articleUrl: string) => {
+    requestRef.current?.abort();
+    requestRef.current = null;
     let trimmed: string;
     try { trimmed = normalizeArticleUrl(articleUrl); }
-    catch (err) { setError((err as Error).message); return; }
+    catch (err) {
+      setIsLoading(false);
+      setError((err as Error).message);
+      return;
+    }
 
-    requestRef.current?.abort();
     const controller = new AbortController();
     requestRef.current = controller;
     flushPosition();
@@ -574,12 +572,14 @@ export default function ReaderPage() {
         data.content ?? "",
       )).length;
       if (!wordCount) throw new Error("This page has no readable text. Try another article, or paste the text on the home page.");
+      const nextWrappedContent = wrapWordsInHtml(data.content);
       const storedIndex = getReadingPositionForUrl(trimmed);
       const restoredIndex = typeof storedIndex === "number" && Number.isFinite(storedIndex)
         ? Math.min(Math.max(0, Math.floor(storedIndex)), Math.max(0, wordCount - 1)) : 0;
       setWordIndex(restoredIndex);
       setLoadedArticleUrl(trimmed);
       setArticle(data);
+      setWrappedContent(nextWrappedContent);
       setShowArticleOnMobile(false);
       if (restoredIndex > 0) toast.info("Resumed from previous session");
 
@@ -637,6 +637,7 @@ export default function ReaderPage() {
       setUrl("");
       setError(null);
       setArticle(null);
+      setWrappedContent(null);
       setLoadedArticleUrl("");
       setWordIndex(0);
     }
