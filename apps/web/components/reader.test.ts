@@ -74,7 +74,7 @@ function renderReader(text: string) {
 }
 
 describe("Scrub auto-follow", () => {
-  it("scrolls only the text panel when switching tabs and advancing playback", () => {
+  it("keeps scrolling inside the text panel during click, keyboard, and playback interactions", () => {
     const scrollIntoView = vi.fn();
     const scrollTo = vi.fn();
     const prototype = window.HTMLElement.prototype;
@@ -97,8 +97,28 @@ describe("Scrub auto-follow", () => {
     act(() => container.querySelector("#reader-scrub-tab")!.dispatchEvent(
       new window.Event("click", { bubbles: true }),
     ));
-    const scrub = container.querySelector("[data-word-index]")!.parentElement!;
+    let scrub = container.querySelector("[data-word-index]")!.parentElement!;
     expect(scrollTo).toHaveBeenCalled();
+    expect(scrollTo.mock.contexts.every((element) => element === scrub)).toBe(true);
+    expect(scrollIntoView).not.toHaveBeenCalled();
+
+    scrollTo.mockClear();
+    const editTab = container.querySelector<HTMLButtonElement>("#reader-edit-tab")!;
+    const scrubTab = container.querySelector<HTMLButtonElement>("#reader-scrub-tab")!;
+    for (const [key, source, target] of [
+      ["ArrowLeft", scrubTab, editTab],
+      ["ArrowRight", editTab, scrubTab],
+    ] as const) {
+      const focus = vi.spyOn(target, "focus");
+      const event = new window.Event("keydown", { bubbles: true, cancelable: true });
+      Object.assign(event, { key });
+      act(() => source.dispatchEvent(event));
+      expect(event.defaultPrevented).toBe(true);
+      expect(target.getAttribute("aria-selected")).toBe("true");
+      expect(focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
+      focus.mockRestore();
+    }
+    scrub = container.querySelector("[data-word-index]")!.parentElement!;
     expect(scrollTo.mock.contexts.every((element) => element === scrub)).toBe(true);
     expect(scrollIntoView).not.toHaveBeenCalled();
 
