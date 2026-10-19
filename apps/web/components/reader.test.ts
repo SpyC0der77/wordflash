@@ -13,9 +13,21 @@ vi.mock("@/hooks/use-media-query", () => ({
 vi.mock("@/components/punctuation-glyph", () => ({
   PunctuationGlyph: () => null,
 }));
+vi.mock("@/components/home-scroll-menu", () => ({
+  HomeScrollMenu: ({ children }: { children: React.ReactNode }) => children,
+}));
+vi.mock("next/link", () => ({
+  default: (props: React.ComponentProps<"a">) => React.createElement("a", props),
+}));
+vi.mock("@/components/ui/drawer", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/components/ui/drawer")>(),
+  Drawer: () => null,
+}));
+vi.mock("@/components/ui/slider", () => ({ Slider: () => null }));
 
 let root: Root;
 let container: HTMLElement;
+let restoreLayout = () => {};
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -30,6 +42,8 @@ beforeEach(() => {
 
 afterEach(() => {
   act(() => root.unmount());
+  restoreLayout();
+  restoreLayout = () => {};
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -58,6 +72,65 @@ function renderReader(text: string) {
   })));
   return { onComplete, onWordIndexChange };
 }
+
+describe("Scrub auto-follow", () => {
+  it("keeps scrolling inside the text panel during click, keyboard, and playback interactions", () => {
+    const scrollIntoView = vi.fn();
+    const scrollTo = vi.fn();
+    const prototype = window.HTMLElement.prototype;
+    const properties = ["scrollIntoView", "scrollTo", "getBoundingClientRect", "clientHeight"] as const;
+    const descriptors = properties.map((key) => Object.getOwnPropertyDescriptor(prototype, key));
+    restoreLayout = () => properties.forEach((key, index) => {
+      const descriptor = descriptors[index];
+      if (descriptor) Object.defineProperty(prototype, key, descriptor);
+      else Reflect.deleteProperty(prototype, key);
+    });
+    prototype.scrollIntoView = scrollIntoView;
+    prototype.scrollTo = scrollTo;
+    prototype.getBoundingClientRect = () => ({
+      top: 600, bottom: 628, left: 0, right: 100, width: 100, height: 28,
+      x: 0, y: 600, toJSON: () => ({}),
+    });
+    Object.defineProperty(prototype, "clientHeight", { configurable: true, get: () => 176 });
+
+    act(() => root.render(React.createElement(Reader, { variant: "full" })));
+    act(() => container.querySelector("#reader-scrub-tab")!.dispatchEvent(
+      new window.Event("click", { bubbles: true }),
+    ));
+    let scrub = container.querySelector("[data-word-index]")!.parentElement!;
+    expect(scrollTo).toHaveBeenCalled();
+    expect(scrollTo.mock.contexts.every((element) => element === scrub)).toBe(true);
+    expect(scrollIntoView).not.toHaveBeenCalled();
+
+    scrollTo.mockClear();
+    const editTab = container.querySelector<HTMLButtonElement>("#reader-edit-tab")!;
+    const scrubTab = container.querySelector<HTMLButtonElement>("#reader-scrub-tab")!;
+    for (const [key, source, target] of [
+      ["ArrowLeft", scrubTab, editTab],
+      ["ArrowRight", editTab, scrubTab],
+    ] as const) {
+      const focus = vi.spyOn(target, "focus");
+      const event = new window.Event("keydown", { bubbles: true, cancelable: true });
+      Object.assign(event, { key });
+      act(() => source.dispatchEvent(event));
+      expect(event.defaultPrevented).toBe(true);
+      expect(target.getAttribute("aria-selected")).toBe("true");
+      expect(focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
+      focus.mockRestore();
+    }
+    scrub = container.querySelector("[data-word-index]")!.parentElement!;
+    expect(scrollTo.mock.contexts.every((element) => element === scrub)).toBe(true);
+    expect(scrollIntoView).not.toHaveBeenCalled();
+
+    scrollTo.mockClear();
+    const play = Array.from(container.querySelectorAll("button")).find((el) => el.textContent === "Play")!;
+    act(() => play.dispatchEvent(new window.Event("click", { bubbles: true })));
+    advance(1000);
+    expect(scrollTo).toHaveBeenCalled();
+    expect(scrollTo.mock.contexts.every((element) => element === scrub)).toBe(true);
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+});
 
 describe("reader playback timing", () => {
   it("pauses for an external seek even when the selected word stays the same", () => {
