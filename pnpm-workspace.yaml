@@ -2,17 +2,24 @@ packages:
   - "apps/*"
   - "packages/*"
 
-onlyBuiltDependencies:
-  - "@parcel/watcher"
-  - "@swc/core"
-  - "@tailwindcss/oxide"
-  - "better-sqlite3"
-  - "electron"
-  - "esbuild"
-  - "msw"
-  - "node-pty"
-  - "protobufjs"
-  - "sharp"
-  - "sqlite3"
-  - "unrs-resolver"
-  - "workerd"
+nodeLinker: hoisted
+enablePrePostScripts: true
+
+minimumReleaseAgeExclude:
+  - framer-motion@14.4.0
+  - motion-dom@14.4.0
+
+allowBuilds:
+  "@parcel/watcher": true
+  "@swc/core": true
+  "@tailwindcss/oxide": true
+  "better-sqlite3": true
+  "electron": true
+  "esbuild": true
+  "msw": true
+  "node-pty": true
+  "protobufjs": true
+  "sharp": true
+  "sqlite3": true
+  "unrs-resolver": true
+  "workerd": true

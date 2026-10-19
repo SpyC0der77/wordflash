@@ -44,7 +44,9 @@ wordflash/
 
 ## Development
 
-Use pnpm for the workspace commands and Node.js 22 or newer for the web and Firebase runtimes.
+Use pnpm 12.14.0 and the latest Node.js 24 patch release for development, the web app, and Firebase Functions. The runtime is set in the package manifests and `firebase.json`; `.nvmrc` selects Node.js 24 for compatible version managers. Package-manager settings live in `pnpm-workspace.yaml`.
+
+TypeScript stays on 6.0.x and ESLint on 9.x until the lint plugins support the newer major versions. Node type definitions stay on 24.x to match the runtime.
 
 ```bash
 pnpm install
@@ -78,4 +80,4 @@ pnpm --filter wordflash run start
 
 **Vercel:** Create a project from this repo and set **Root Directory** to `apps/web`. See the [Next.js deploy docs](https://nextjs.org/docs/app/building-your-application/deploying) if you need the details.
 
-**Firebase:** `firebase.json` hosts the web app and routes `/api/extract` to the `extract` Cloud Function in `functions/`. Install the Functions dependencies with `pnpm --dir functions install` and authenticate the Firebase CLI before running `firebase deploy`. The predeploy hook builds the Functions code. Review `.firebaserc` and choose your own Firebase project before deployment.
+**Firebase:** `firebase.json` hosts the web app and routes `/api/extract` to the `extract` Cloud Function in `functions/`. Use Firebase CLI 15.34.0 or newer. Install the Functions dependencies with `pnpm --dir functions install` and authenticate the Firebase CLI before running `firebase deploy`. The predeploy hook builds the Functions code. Review `.firebaserc` and choose your own Firebase project before deployment.

@@ -3,7 +3,7 @@
   "private": true,
   "main": "lib/index.js",
   "engines": {
-    "node": "22"
+    "node": "24"
   },
   "scripts": {
     "build": "tsup src/index.ts --format cjs --out-dir lib --clean"
@@ -12,11 +12,11 @@
     "@mozilla/readability": "^0.6.0",
     "firebase-admin": "^14.5.0",
     "firebase-functions": "^7.4.0",
-    "linkedom": "^0.18.12"
+    "linkedom": "^0.18.13"
   },
   "devDependencies": {
-    "tsup": "^8.3.5",
-    "typescript": "^5"
+    "tsup": "^9.0.0",
+    "typescript": "~6.0.3"
   },
-  "packageManager": "pnpm@10.29.3"
+  "packageManager": "pnpm@12.14.0"
 }

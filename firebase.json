@@ -3,6 +3,7 @@
     {
       "source": "functions",
       "codebase": "extract",
+      "runtime": "nodejs24",
       "predeploy": ["pnpm --dir functions run build"]
     }
   ],

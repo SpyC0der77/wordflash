@@ -4,7 +4,7 @@ This script captures the deployed app at [https://wordflashreader.vercel.app](ht
 
 The Scrub sequence clicks individual words, then drags the position slider backward and forward. The recording checks that the slider position changes and matches the highlighted word. The Article Reader sequence loads NASA's Moon Facts URL through the live extractor, plays the article with synchronized highlighting, and clicks words in the article to jump the player and resume reading.
 
-Use Node.js 20.9 or newer and FFmpeg on your PATH. From the repository root, run:
+Use the latest Node.js 24 patch release and FFmpeg on your PATH. From the repository root, run:
 
 ```bash
 npm ci --prefix docs/demo
