@@ -336,7 +336,13 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
         rect.bottom <= containerRect.bottom - margin;
       if (!isComfortablyVisible) {
         const behavior = reduceMotion ? "auto" : "smooth";
-        span.scrollIntoView({ behavior, block: "center" });
+        // Keep auto-follow inside the text panel. scrollIntoView also pans the
+        // page's visual viewport when the reader has pinch-zoomed in.
+        container.scrollTo({
+          top: container.scrollTop + rect.top - containerRect.top
+            - (container.clientHeight - rect.height) / 2,
+          behavior,
+        });
       }
     }
   }, [isFull, inputTab, activeWordIndex, words.length, reduceMotion]);
@@ -1021,7 +1027,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
               const next = event.key === "Home" ? "edit" : event.key === "End" ? "scrub"
                 : inputTab === "edit" ? "scrub" : "edit";
               setInputTab(next);
-              (next === "edit" ? editTabRef : scrubTabRef).current?.focus();
+              (next === "edit" ? editTabRef : scrubTabRef).current?.focus({ preventScroll: true });
             }}
             className="relative flex rounded-lg border border-border bg-muted/50 p-0.5"
           >
