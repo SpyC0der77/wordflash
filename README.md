@@ -44,9 +44,9 @@ wordflash/
 
 ## Development
 
-Use pnpm 12.14.0 and the latest Node.js 24 patch release for development, the web app, and Firebase Functions. The runtime is set in the package manifests and `firebase.json`; `.nvmrc` selects Node.js 24 for compatible version managers. Package-manager settings live in `pnpm-workspace.yaml`.
+Use pnpm 12.14.0 and the latest Node.js 24 patch release for development, the web app, and Firebase Functions. Node.js 24.11.0 is the minimum supported version because of the build tooling. The runtime is set in the package manifests and `firebase.json`; `.nvmrc` selects Node.js 24 for compatible version managers. Package-manager settings live in `pnpm-workspace.yaml`.
 
-TypeScript stays on 6.0.x and ESLint on 9.x until the lint plugins support the newer major versions. Node type definitions stay on 24.x to match the runtime.
+TypeScript stays on 6.0.x and ESLint on 9.x until the lint plugins support the newer major versions. Node type definitions stay on 24.x to match the runtime. Framer Motion is pinned to 14.3.0 so this update respects pnpm's 24-hour release-age gate; no release-age exemptions are configured.
 
 ```bash
 pnpm install
@@ -80,4 +80,4 @@ pnpm --filter wordflash run start
 
 **Vercel:** Create a project from this repo and set **Root Directory** to `apps/web`. The app's `vercel.json` pins pnpm for install and build commands to bypass Vercel's incompatible automatic pnpm bootstrap. Keep that version aligned with `packageManager`. See the [Next.js deploy docs](https://nextjs.org/docs/app/building-your-application/deploying) if you need the details.
 
-**Firebase:** `firebase.json` hosts the web app and routes `/api/extract` to the `extract` Cloud Function in `functions/`. Use Firebase CLI 15.34.0 or newer. Install the Functions dependencies with `pnpm --dir functions install` and authenticate the Firebase CLI before running `firebase deploy`. The predeploy hook builds the Functions code. Review `.firebaserc` and choose your own Firebase project before deployment.
+**Firebase:** `firebase.json` hosts the web app and routes `/api/extract` to the `extract` Cloud Function in `functions/`. Use a Firebase CLI release that supports Node.js 24. Install the Functions dependencies with `pnpm --dir functions install` and authenticate the Firebase CLI before running `firebase deploy`. The predeploy hook builds the Functions code. Review `.firebaserc` and choose your own Firebase project before deployment.

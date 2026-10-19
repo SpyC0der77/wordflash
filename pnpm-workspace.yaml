@@ -5,10 +5,6 @@ packages:
 nodeLinker: hoisted
 enablePrePostScripts: true
 
-minimumReleaseAgeExclude:
-  - framer-motion@14.4.0
-  - motion-dom@14.4.0
-
 allowBuilds:
   "@parcel/watcher": true
   "@swc/core": true
