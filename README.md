@@ -78,6 +78,6 @@ pnpm --filter wordflash run start
 
 ## Deploy
 
-**Vercel:** Create a project from this repo and set **Root Directory** to `apps/web`. See the [Next.js deploy docs](https://nextjs.org/docs/app/building-your-application/deploying) if you need the details.
+**Vercel:** Create a project from this repo and set **Root Directory** to `apps/web`. The app's `vercel.json` pins pnpm for install and build commands to bypass Vercel's incompatible automatic pnpm bootstrap. Keep that version aligned with `packageManager`. See the [Next.js deploy docs](https://nextjs.org/docs/app/building-your-application/deploying) if you need the details.
 
 **Firebase:** `firebase.json` hosts the web app and routes `/api/extract` to the `extract` Cloud Function in `functions/`. Use Firebase CLI 15.34.0 or newer. Install the Functions dependencies with `pnpm --dir functions install` and authenticate the Firebase CLI before running `firebase deploy`. The predeploy hook builds the Functions code. Review `.firebaserc` and choose your own Firebase project before deployment.
