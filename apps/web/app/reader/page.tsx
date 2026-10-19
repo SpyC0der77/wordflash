@@ -613,6 +613,8 @@ export default function ReaderPage() {
       if (stored) {
         const parsed = JSON.parse(stored) as PreviousArticle[];
         if (Array.isArray(parsed)) {
+          // Hydrate browser-only history after SSR so the initial markup agrees.
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setPreviousArticles(parsed.filter((entry) =>
             entry && typeof entry.url === "string" && typeof entry.title === "string",
           ).slice(0, PREVIOUS_ARTICLES_MAX));
@@ -627,6 +629,8 @@ export default function ReaderPage() {
   useEffect(() => {
     const paramUrl = urlFromQuery?.trim();
     if (paramUrl) {
+      // Navigation changes must synchronize the editable input and article request.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUrl(paramUrl);
       loadArticle(paramUrl);
     } else {

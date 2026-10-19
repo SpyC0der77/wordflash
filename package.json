@@ -2,6 +2,9 @@
   "name": "wordflash-monorepo",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=24.11.0 <25"
+  },
   "scripts": {
     "dev": "pnpm --filter wordflash run dev",
     "dev:web": "pnpm --filter wordflash run dev",
@@ -12,11 +15,11 @@
     "prepare": "pnpm --filter @wordflash/core run build"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "tsx": "^4.20.6"
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3"
   },
   "dependencies": {
-    "nuqs": "^2.8.9"
+    "nuqs": "^2.10.2"
   },
-  "packageManager": "pnpm@10.29.3"
+  "packageManager": "pnpm@12.14.0"
 }

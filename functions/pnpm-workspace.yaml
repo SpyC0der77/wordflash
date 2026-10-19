@@ -1,15 +1,18 @@
-onlyBuiltDependencies:
-  - "@firebase/util"
-  - "@parcel/watcher"
-  - "@swc/core"
-  - "@tailwindcss/oxide"
-  - "better-sqlite3"
-  - "electron"
-  - "esbuild"
-  - "fsevents"
-  - "node-pty"
-  - "protobufjs"
-  - "sharp"
-  - "sqlite3"
-  - "unrs-resolver"
-  - "workerd"
+nodeLinker: hoisted
+enablePrePostScripts: true
+
+allowBuilds:
+  "@firebase/util": true
+  "@parcel/watcher": true
+  "@swc/core": true
+  "@tailwindcss/oxide": true
+  "better-sqlite3": true
+  "electron": true
+  "esbuild": true
+  "fsevents": true
+  "node-pty": true
+  "protobufjs": true
+  "sharp": true
+  "sqlite3": true
+  "unrs-resolver": true
+  "workerd": true
