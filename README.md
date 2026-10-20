@@ -8,8 +8,6 @@ WordFlash uses rapid serial visual presentation (RSVP) to show one word at a tim
 
 [Watch the MP4](docs/images/demo.mp4) · [Recording script](docs/demo/README.md)
 
-[Watch the MP4](docs/images/demo.mp4) · [Recording script](docs/demo/README.md)
-
 <details>
 <summary>Screenshot</summary>
 
