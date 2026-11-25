@@ -24,7 +24,7 @@ beforeEach(() => {
     requestAnimationFrame: (callback: FrameRequestCallback) => setTimeout(() => callback(0), 0),
     cancelAnimationFrame: (id: number) => clearTimeout(id),
   });
-  Object.defineProperty(window.document.documentElement, "scrollHeight", { value: 1400 });
+  Object.defineProperty(window.document.documentElement, "scrollHeight", { value: 1400, configurable: true });
   Object.defineProperty(window.HTMLElement.prototype, "offsetWidth", { get: () => 185, configurable: true });
   vi.stubGlobal("window", window);
   vi.stubGlobal("document", window.document);
@@ -54,6 +54,7 @@ async function render(children: React.ReactNode = <a href="/about">About</a>) {
 
 function button() { return container.querySelector("button")!; }
 function navigation() { return container.querySelector<HTMLElement>("#home-navigation")!; }
+function reveal() { return navigation().parentElement!; }
 function scroll(y: number) {
   act(() => {
     Object.assign(window, { scrollY: y });
@@ -68,6 +69,38 @@ function hover(enter: boolean, pointerType = "mouse") {
 }
 
 describe("home navigation scroll and hover", () => {
+  it.each([1920, 390])("uses fixed scroll distances at width %i regardless of page height", async (innerWidth) => {
+    Object.assign(window, { innerWidth });
+    Object.defineProperty(document.documentElement, "scrollHeight", { value: 1112, configurable: true });
+    await render();
+    scroll(32);
+    const before = navigation().style.transform;
+    expect(button().getAttribute("aria-expanded")).toBe("true");
+    Object.defineProperty(document.documentElement, "scrollHeight", { value: 4000, configurable: true });
+    act(() => window.dispatchEvent(new window.Event("resize")));
+    expect(navigation().style.transform).toBe(before);
+    scroll(innerWidth < 768 ? 64 : 120);
+    expect(button().getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("keeps the hover target stationary and preserves an opening transition during scrolling", async () => {
+    await render();
+    scroll(120);
+    const frame = button().parentElement!;
+    expect(frame.style.clipPath).toBe("");
+    expect(reveal().style.clipPath).toBe("inset(0 0 0 193px)");
+    expect(frame.style.pointerEvents).toBe("none");
+    hover(true);
+    expect(frame.style.pointerEvents).toBe("auto");
+    const transition = navigation().style.transition;
+    scroll(180);
+    act(() => window.dispatchEvent(new window.Event("resize")));
+    expect(navigation().style.transition).toBe(transition);
+    expect(reveal().style.transition).toBe("clip-path 220ms cubic-bezier(0.16, 1, 0.3, 1)");
+    hover(false);
+    expect(frame.style.pointerEvents).toBe("none");
+  });
+
   it("keeps fading controls out of pointer, keyboard, and screen-reader interaction", async () => {
     await render();
     scroll(1);
@@ -136,13 +169,11 @@ describe("home navigation scroll and hover", () => {
     expect(navigation().style.transform).toBe("translate3d(193px, 0, 0)");
     act(() => button().click());
     expect(navigation().style.transition).toBe("transform 150ms cubic-bezier(0.16, 1, 0.3, 1)");
-    expect(button().parentElement!.style.transitionDuration).toBe("150ms, 150ms");
-    expect(button().parentElement!.style.transitionTimingFunction).toBe("cubic-bezier(0.4, 0, 0.2, 1), cubic-bezier(0.16, 1, 0.3, 1)");
+    expect(reveal().style.transition).toBe("clip-path 150ms cubic-bezier(0.16, 1, 0.3, 1)");
     expect(button().getAttribute("aria-expanded")).toBe("true");
     act(() => button().click());
     expect(navigation().style.transition).toBe("transform 100ms ease-out");
-    expect(button().parentElement!.style.transitionDuration).toBe("150ms, 100ms");
-    expect(button().parentElement!.style.transitionTimingFunction).toBe("cubic-bezier(0.4, 0, 0.2, 1), ease-out");
+    expect(reveal().style.transition).toBe("clip-path 100ms ease-out");
   });
 
   it("fades the hamburger in before moving controls, and hides it at the top", async () => {
@@ -188,16 +219,14 @@ describe("home navigation scroll and hover", () => {
     hover(true);
     expect(navigation().style.transform).toBe("translate3d(0px, 0, 0)");
     expect(navigation().style.transition).toBe("transform 220ms cubic-bezier(0.16, 1, 0.3, 1)");
-    expect(button().parentElement!.style.transitionDuration).toBe("150ms, 220ms");
-    expect(button().parentElement!.style.transitionTimingFunction).toBe("cubic-bezier(0.4, 0, 0.2, 1), cubic-bezier(0.16, 1, 0.3, 1)");
+    expect(reveal().style.transition).toBe("clip-path 220ms cubic-bezier(0.16, 1, 0.3, 1)");
     expect(button().getAttribute("aria-expanded")).toBe("true");
     scroll(180);
     expect(button().getAttribute("aria-expanded")).toBe("true");
     hover(false);
     expect(navigation().style.transform).toBe("translate3d(193px, 0, 0)");
     expect(navigation().style.transition).toBe("transform 150ms ease-out");
-    expect(button().parentElement!.style.transitionDuration).toBe("150ms, 150ms");
-    expect(button().parentElement!.style.transitionTimingFunction).toBe("cubic-bezier(0.4, 0, 0.2, 1), ease-out");
+    expect(reveal().style.transition).toBe("clip-path 150ms ease-out");
     expect(button().getAttribute("aria-expanded")).toBe("false");
   });
 

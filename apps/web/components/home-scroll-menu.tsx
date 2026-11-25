@@ -8,6 +8,7 @@ import { useReduceMotion } from "@/lib/reduce-motion-context";
 
 export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimmed: boolean }) {
   const frameRef = useRef<HTMLDivElement>(null);
+  const revealRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const iconRef = useRef<HTMLButtonElement>(null);
   const manualProgress = useRef<number | null>(null);
@@ -28,17 +29,18 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
 
   useEffect(() => {
     let pendingFrame: number | undefined;
-    let scrollRange = 1;
+    let lastTravel: number | undefined;
     let expandedWidth = 220;
     let mobile = false;
     const draw = (animate = false) => {
       const frame = frameRef.current;
+      const reveal = revealRef.current;
       const content = contentRef.current;
       const icon = iconRef.current;
-      if (!frame || !content || !icon) return;
+      if (!frame || !reveal || !content || !icon) return;
       const scroll = Math.max(0, window.scrollY || 0);
-      const distance = Math.min(mobile ? 64 : 120, scrollRange);
-      const fadeDistance = Math.min(mobile ? 12 : 24, distance / 4);
+      const distance = mobile ? 64 : 120;
+      const fadeDistance = mobile ? 12 : 24;
       const amount = Math.min(1, Math.max(0, (scroll - fadeDistance) / (distance - fadeDistance)));
       // Ease out while closing; reversing the same curve eases in while opening.
       const easedAmount = 1 - (1 - amount) ** 2;
@@ -49,14 +51,18 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
       const duration = mobile ? (opening ? 150 : 100) : (opening ? 220 : 150);
       const easing = opening ? "cubic-bezier(0.16, 1, 0.3, 1)" : "ease-out";
       const animateReveal = animate && !reduced;
-      // Keep the reveal edge in sync with the controls behind the stationary button.
-      frame.style.transitionProperty = animateReveal ? "opacity, clip-path" : "opacity";
-      frame.style.transitionDuration = animateReveal ? `150ms, ${duration}ms` : "150ms";
-      const opacityEasing = "cubic-bezier(0.4, 0, 0.2, 1)";
-      frame.style.transitionTimingFunction = animateReveal ? `${opacityEasing}, ${easing}` : opacityEasing;
-      content.style.transition = animateReveal ? `transform ${duration}ms ${easing}` : "none";
-      frame.style.clipPath = `inset(0 0 0 ${travel}px)`;
-      content.style.transform = `translate3d(${travel}px, 0, 0)`;
+      // A stationary hover target prevents the moving reveal edge from toggling hover.
+      // Only enable its full hit area after entering a visible control.
+      frame.style.pointerEvents = hovered.current ? "auto" : "none";
+      if (travel !== lastTravel) {
+        // Scroll/resize events must not cancel an in-flight hover or tap transition
+        // when its destination has not changed.
+        reveal.style.transition = animateReveal ? `clip-path ${duration}ms ${easing}` : "none";
+        content.style.transition = animateReveal ? `transform ${duration}ms ${easing}` : "none";
+        reveal.style.clipPath = `inset(0 0 0 ${travel}px)`;
+        content.style.transform = `translate3d(${travel}px, 0, 0)`;
+        lastTravel = travel;
+      }
       icon.style.opacity = String(reduced ? Number(scroll > 0) : Math.min(1, scroll / fadeDistance));
       if (progress >= 1 && content.contains(document.activeElement)) focusOnCollapse.current = true;
       if (scroll === 0 && document.activeElement === icon) icon.blur();
@@ -64,7 +70,6 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
       setIconVisible(reduced ? scroll > 0 : scroll >= fadeDistance);
     };
     const measure = () => {
-      scrollRange = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
       expandedWidth = contentRef.current?.offsetWidth || 220;
       mobile = window.innerWidth < 768 || Boolean(window.matchMedia?.("(pointer: coarse)").matches);
       if (frameRef.current) frameRef.current.style.width = `${expandedWidth + 52}px`;
@@ -84,7 +89,6 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
     window.addEventListener("resize", measure);
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     if (contentRef.current) observer?.observe(contentRef.current);
-    if (frameRef.current?.parentElement) observer?.observe(frameRef.current.parentElement);
     return () => {
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", measure);
@@ -97,7 +101,7 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
   return (
     <div
       ref={frameRef}
-      className="fixed right-3 top-3 z-50 h-11 overflow-hidden transition-opacity duration-150 sm:right-8 sm:top-8"
+      className="pointer-events-none fixed right-3 top-3 z-50 h-11 transition-opacity duration-150 sm:right-8 sm:top-8"
       style={{ opacity: dimmed ? 0.4 : 1 }}
       onPointerEnter={(event) => {
         if (event.pointerType === "touch") return;
@@ -120,14 +124,16 @@ export function HomeScrollMenu({ children, dimmed }: { children: ReactNode; dimm
         }
       }}
     >
-      <div
-        id="home-navigation"
-        ref={contentRef}
-        className="pointer-events-auto flex h-11 w-max items-center gap-2"
-        inert={collapsed}
-        aria-hidden={collapsed}
-      >
-        {children}
+      <div ref={revealRef} className="absolute inset-0 overflow-hidden">
+        <div
+          id="home-navigation"
+          ref={contentRef}
+          className="pointer-events-auto flex h-11 w-max items-center gap-2"
+          inert={collapsed}
+          aria-hidden={collapsed}
+        >
+          {children}
+        </div>
       </div>
       <Button
         ref={iconRef}

@@ -708,9 +708,10 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
           triggerClassName="size-8 sm:size-9"
         />
       </HomeScrollMenu>
-      <div className="min-h-0 flex-1 shrink-0" aria-hidden />
-      {content}
-      <div className="min-h-0 flex-1 shrink-0" aria-hidden />
+      {/* Reserve space for the default input height, independent of user resizing. */}
+      <div className="flex min-h-[calc(100svh-19rem)] w-full shrink-0 flex-col justify-center gap-4 py-6">
+        {content}
+      </div>
       <section className={cn("w-full max-w-4xl pb-6 sm:pb-0", dimWhilePlaying)}>
         <div className="mb-2 flex items-center justify-between gap-2">
           <label
