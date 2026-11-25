@@ -115,14 +115,6 @@ export function getWordParts(word: string) {
   };
 }
 
-/** Legacy compatibility helper. Word boundaries now work across inline elements. */
-export function attachTrailingCommasToLinks(html: string): string {
-  return html.replace(/(<\/a>)(\s*,\s*)/g, (_, tag, punct) => {
-    const trailingSpace = /\s$/.test(punct) ? " " : "";
-    return "," + tag + trailingSpace;
-  });
-}
-
 const BLOCK_ELEMENTS = new Set([
   "ADDRESS", "ARTICLE", "ASIDE", "BLOCKQUOTE", "DIV", "DL", "DT", "DD",
   "FIGCAPTION", "FIGURE", "FOOTER", "H1", "H2", "H3", "H4", "H5", "H6",

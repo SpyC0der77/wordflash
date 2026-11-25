@@ -2,29 +2,33 @@
 
 import React, {
   createContext,
-  useCallback,
   useContext,
   useMemo,
   useSyncExternalStore,
 } from "react";
-import type {
-  FocalColorKey,
-  FontFamilyKey,
-  FontSizeKey,
+import {
+  FOCAL_COLORS,
+  FONT_FAMILIES,
+  FONT_SIZES,
+  type FocalColorKey,
+  type FontFamilyKey,
+  type FontSizeKey,
 } from "@/lib/reader-appearance";
+import {
+  DEFAULT_PUNCTUATION_GLYPH_DURATION_MS,
+  DEFAULT_PUNCTUATION_GLYPH_LEAD_MS,
+  DEFAULT_SENTENCE_END_MS,
+  DEFAULT_SPEECH_BREAK_MS,
+  DEFAULT_WORDS_PER_MINUTE,
+  PAUSE_MAX_MS,
+  PUNCTUATION_GLYPH_DURATION_MAX_MS,
+  PUNCTUATION_GLYPH_LEAD_MAX_MS,
+  WPM_MAX,
+  WPM_MIN,
+} from "@/lib/reader-defaults";
 
 const STORAGE_KEY = "wordflash-reader-settings";
 const LEGACY_STORAGE_KEY = "speedreader-reader-settings";
-
-const DEFAULT_SENTENCE_END_MS = 500;
-const DEFAULT_SPEECH_BREAK_MS = 250;
-const DEFAULT_PUNCTUATION_GLYPH_LEAD_MS = 80;
-const PUNCTUATION_GLYPH_LEAD_MAX_MS = 200;
-const DEFAULT_PUNCTUATION_GLYPH_DURATION_MS = 400;
-const PUNCTUATION_GLYPH_DURATION_MAX_MS = 1000;
-const DEFAULT_WORDS_PER_MINUTE = 300;
-const WPM_MIN = 50;
-const WPM_MAX = 1200;
 
 interface StoredSettings {
   fontSize: FontSizeKey;
@@ -54,17 +58,79 @@ const DEFAULTS: StoredSettings = {
   centerPunctuationTittleVertically: false,
 };
 
+const SETTING_KEYS = Object.keys(DEFAULTS) as Array<keyof StoredSettings>;
+
 // Keep preferences usable for this session if storage is blocked or full.
 let unsavedSettings: StoredSettings | null = null;
 
+function optionOr<K extends string>(
+  value: unknown,
+  options: Record<K, unknown>,
+  fallback: K,
+): K {
+  return typeof value === "string" && Object.hasOwn(options, value)
+    ? (value as K)
+    : fallback;
+}
+
+function numberInRange(
+  value: unknown,
+  min: number,
+  max: number,
+  fallback: number,
+): number {
+  return typeof value === "number" && value >= min && value <= max ? value : fallback;
+}
+
+function booleanOr(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function clampRounded(value: number, min: number, max: number): number {
+  return Math.round(Math.max(min, Math.min(max, value)));
+}
+
+/** Older builds stored a `punctuationCue` mode string instead of a boolean. */
 function parseShowPunctuationGlyph(
   punctuationCue: unknown,
   showPunctuationGlyph: unknown,
 ): boolean {
   if (punctuationCue === "off") return false;
   if (typeof punctuationCue === "string") return true;
-  if (typeof showPunctuationGlyph === "boolean") return showPunctuationGlyph;
-  return true;
+  return booleanOr(showPunctuationGlyph, true);
+}
+
+function parseStored(parsed: Partial<Record<keyof StoredSettings | "punctuationCue", unknown>>): StoredSettings {
+  return {
+    fontSize: optionOr(parsed.fontSize, FONT_SIZES, DEFAULTS.fontSize),
+    fontFamily: optionOr(parsed.fontFamily, FONT_FAMILIES, DEFAULTS.fontFamily),
+    focalColor: optionOr(parsed.focalColor, FOCAL_COLORS, DEFAULTS.focalColor),
+    sentenceEndDurationMs: numberInRange(
+      parsed.sentenceEndDurationMs, 0, PAUSE_MAX_MS, DEFAULTS.sentenceEndDurationMs,
+    ),
+    speechBreakDurationMs: numberInRange(
+      parsed.speechBreakDurationMs, 0, PAUSE_MAX_MS, DEFAULTS.speechBreakDurationMs,
+    ),
+    wordsPerMinute: numberInRange(
+      parsed.wordsPerMinute, WPM_MIN, WPM_MAX, DEFAULTS.wordsPerMinute,
+    ),
+    showPunctuationGlyph: parseShowPunctuationGlyph(
+      parsed.punctuationCue,
+      parsed.showPunctuationGlyph,
+    ),
+    punctuationGlyphLeadMs: numberInRange(
+      parsed.punctuationGlyphLeadMs, 0, PUNCTUATION_GLYPH_LEAD_MAX_MS, DEFAULTS.punctuationGlyphLeadMs,
+    ),
+    punctuationGlyphDurationMs: numberInRange(
+      parsed.punctuationGlyphDurationMs, 0, PUNCTUATION_GLYPH_DURATION_MAX_MS, DEFAULTS.punctuationGlyphDurationMs,
+    ),
+    punctuationGlyphAlwaysVisible: booleanOr(
+      parsed.punctuationGlyphAlwaysVisible, DEFAULTS.punctuationGlyphAlwaysVisible,
+    ),
+    centerPunctuationTittleVertically: booleanOr(
+      parsed.centerPunctuationTittleVertically, DEFAULTS.centerPunctuationTittleVertically,
+    ),
+  };
 }
 
 function loadStored(): StoredSettings {
@@ -75,72 +141,13 @@ function loadStored(): StoredSettings {
     const fromLegacy = !raw && !!localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) raw = localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return DEFAULTS;
-    const parsed = JSON.parse(raw) as Partial<StoredSettings> & {
-      punctuationCue?: unknown;
-    };
-    const result = {
-      fontSize:
-        parsed.fontSize && ["sm", "md", "lg", "xl"].includes(parsed.fontSize)
-          ? parsed.fontSize
-          : DEFAULTS.fontSize,
-      fontFamily:
-        parsed.fontFamily && ["sans", "serif", "mono"].includes(parsed.fontFamily)
-          ? parsed.fontFamily
-          : DEFAULTS.fontFamily,
-      focalColor:
-        parsed.focalColor &&
-        ["rose", "blue", "green", "amber"].includes(parsed.focalColor)
-          ? parsed.focalColor
-          : DEFAULTS.focalColor,
-      sentenceEndDurationMs:
-        typeof parsed.sentenceEndDurationMs === "number" &&
-        parsed.sentenceEndDurationMs >= 0 &&
-        parsed.sentenceEndDurationMs <= 1000
-          ? parsed.sentenceEndDurationMs
-          : DEFAULTS.sentenceEndDurationMs,
-      speechBreakDurationMs:
-        typeof parsed.speechBreakDurationMs === "number" &&
-        parsed.speechBreakDurationMs >= 0 &&
-        parsed.speechBreakDurationMs <= 1000
-          ? parsed.speechBreakDurationMs
-          : DEFAULTS.speechBreakDurationMs,
-      wordsPerMinute:
-        typeof parsed.wordsPerMinute === "number" &&
-        parsed.wordsPerMinute >= WPM_MIN &&
-        parsed.wordsPerMinute <= WPM_MAX
-          ? parsed.wordsPerMinute
-          : DEFAULTS.wordsPerMinute,
-      showPunctuationGlyph: parseShowPunctuationGlyph(
-        parsed.punctuationCue,
-        parsed.showPunctuationGlyph,
-      ),
-      punctuationGlyphLeadMs:
-        typeof parsed.punctuationGlyphLeadMs === "number" &&
-        parsed.punctuationGlyphLeadMs >= 0 &&
-        parsed.punctuationGlyphLeadMs <= PUNCTUATION_GLYPH_LEAD_MAX_MS
-          ? parsed.punctuationGlyphLeadMs
-          : DEFAULTS.punctuationGlyphLeadMs,
-      punctuationGlyphDurationMs:
-        typeof parsed.punctuationGlyphDurationMs === "number" &&
-        parsed.punctuationGlyphDurationMs >= 0 &&
-        parsed.punctuationGlyphDurationMs <= PUNCTUATION_GLYPH_DURATION_MAX_MS
-          ? parsed.punctuationGlyphDurationMs
-          : DEFAULTS.punctuationGlyphDurationMs,
-      punctuationGlyphAlwaysVisible:
-        typeof parsed.punctuationGlyphAlwaysVisible === "boolean"
-          ? parsed.punctuationGlyphAlwaysVisible
-          : DEFAULTS.punctuationGlyphAlwaysVisible,
-      centerPunctuationTittleVertically:
-        typeof parsed.centerPunctuationTittleVertically === "boolean"
-          ? parsed.centerPunctuationTittleVertically
-          : DEFAULTS.centerPunctuationTittleVertically,
-    };
+    const result = parseStored(JSON.parse(raw));
     if (fromLegacy) {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(result));
         localStorage.removeItem(LEGACY_STORAGE_KEY);
       } catch {
-        // Ignore - keep legacy key if write fails; saveStored swallows errors
+        // Keep the legacy key if the write fails; saveStored swallows errors too.
       }
     }
     return result;
@@ -173,25 +180,9 @@ function subscribe(listener: () => void) {
 
 let cachedSnapshot: StoredSettings | null = null;
 
-function shallowEqualSettings(a: StoredSettings, b: StoredSettings): boolean {
-  return (
-    a.fontSize === b.fontSize &&
-    a.fontFamily === b.fontFamily &&
-    a.focalColor === b.focalColor &&
-    a.sentenceEndDurationMs === b.sentenceEndDurationMs &&
-    a.speechBreakDurationMs === b.speechBreakDurationMs &&
-    a.wordsPerMinute === b.wordsPerMinute &&
-    a.showPunctuationGlyph === b.showPunctuationGlyph &&
-    a.punctuationGlyphLeadMs === b.punctuationGlyphLeadMs &&
-    a.punctuationGlyphDurationMs === b.punctuationGlyphDurationMs &&
-    a.punctuationGlyphAlwaysVisible === b.punctuationGlyphAlwaysVisible &&
-    a.centerPunctuationTittleVertically === b.centerPunctuationTittleVertically
-  );
-}
-
 function getSnapshot(): StoredSettings {
   const next = loadStored();
-  if (cachedSnapshot && shallowEqualSettings(cachedSnapshot, next)) {
+  if (cachedSnapshot && SETTING_KEYS.every((key) => cachedSnapshot![key] === next[key])) {
     return cachedSnapshot;
   }
   cachedSnapshot = next;
@@ -202,30 +193,56 @@ function getServerSnapshot(): StoredSettings {
   return DEFAULTS;
 }
 
-function updateStored(updater: (prev: StoredSettings) => StoredSettings) {
-  const next = updater(loadStored());
-  saveStored(next);
+function updateStored(patch: Partial<StoredSettings>) {
+  saveStored({ ...loadStored(), ...patch });
   emitChange();
 }
 
-interface ReaderSettingsContextValue extends StoredSettings {
-  setFontSize: (v: FontSizeKey) => void;
-  setFontFamily: (v: FontFamilyKey) => void;
-  setFocalColor: (v: FocalColorKey) => void;
-  setSentenceEndDurationMs: (v: number) => void;
-  setSpeechBreakDurationMs: (v: number) => void;
-  setWordsPerMinute: (v: number) => void;
-  setShowPunctuationGlyph: (v: boolean) => void;
-  setPunctuationGlyphLeadMs: (v: number) => void;
-  setPunctuationGlyphDurationMs: (v: number) => void;
-  setPunctuationGlyphAlwaysVisible: (v: boolean) => void;
-  setCenterPunctuationTittleVertically: (v: boolean) => void;
-  resetDefaults: () => void;
-}
+// Setters only touch module state, so they are stable across renders without useCallback.
+const SETTERS = {
+  setFontSize: (fontSize: FontSizeKey) => updateStored({ fontSize }),
+  setFontFamily: (fontFamily: FontFamilyKey) => updateStored({ fontFamily }),
+  setFocalColor: (focalColor: FocalColorKey) => updateStored({ focalColor }),
+  setSentenceEndDurationMs: (sentenceEndDurationMs: number) =>
+    updateStored({ sentenceEndDurationMs }),
+  setSpeechBreakDurationMs: (speechBreakDurationMs: number) =>
+    updateStored({ speechBreakDurationMs }),
+  setWordsPerMinute: (wordsPerMinute: number) =>
+    updateStored({ wordsPerMinute: clampRounded(wordsPerMinute, WPM_MIN, WPM_MAX) }),
+  setShowPunctuationGlyph: (showPunctuationGlyph: boolean) =>
+    updateStored({ showPunctuationGlyph }),
+  setPunctuationGlyphLeadMs: (punctuationGlyphLeadMs: number) =>
+    updateStored({
+      punctuationGlyphLeadMs: clampRounded(punctuationGlyphLeadMs, 0, PUNCTUATION_GLYPH_LEAD_MAX_MS),
+    }),
+  setPunctuationGlyphDurationMs: (punctuationGlyphDurationMs: number) =>
+    updateStored({
+      punctuationGlyphDurationMs: clampRounded(punctuationGlyphDurationMs, 0, PUNCTUATION_GLYPH_DURATION_MAX_MS),
+    }),
+  setPunctuationGlyphAlwaysVisible: (punctuationGlyphAlwaysVisible: boolean) =>
+    updateStored({ punctuationGlyphAlwaysVisible }),
+  setCenterPunctuationTittleVertically: (centerPunctuationTittleVertically: boolean) =>
+    updateStored({ centerPunctuationTittleVertically }),
+  resetDefaults: () => {
+    saveStored(DEFAULTS);
+    emitChange();
+  },
+};
+
+type ReaderSettingsContextValue = StoredSettings & typeof SETTERS;
 
 const ReaderSettingsContext = createContext<ReaderSettingsContextValue | null>(
   null,
 );
+
+const noop = () => {};
+/** Used outside a provider: defaults that ignore writes. */
+const DETACHED_SETTINGS: ReaderSettingsContextValue = {
+  ...DEFAULTS,
+  ...(Object.fromEntries(
+    Object.keys(SETTERS).map((name) => [name, noop]),
+  ) as Record<keyof typeof SETTERS, () => void>),
+};
 
 export function ReaderSettingsProvider({ children }: { children: React.ReactNode }) {
   const settings = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
@@ -249,94 +266,7 @@ export function ReaderSettingsProvider({ children }: { children: React.ReactNode
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  const setFontSize = useCallback((fontSize: FontSizeKey) => {
-    updateStored((s) => ({ ...s, fontSize }));
-  }, []);
-
-  const setFontFamily = useCallback((fontFamily: FontFamilyKey) => {
-    updateStored((s) => ({ ...s, fontFamily }));
-  }, []);
-
-  const setFocalColor = useCallback((focalColor: FocalColorKey) => {
-    updateStored((s) => ({ ...s, focalColor }));
-  }, []);
-
-  const setSentenceEndDurationMs = useCallback((sentenceEndDurationMs: number) => {
-    updateStored((s) => ({ ...s, sentenceEndDurationMs }));
-  }, []);
-
-  const setSpeechBreakDurationMs = useCallback((speechBreakDurationMs: number) => {
-    updateStored((s) => ({ ...s, speechBreakDurationMs }));
-  }, []);
-
-  const setWordsPerMinute = useCallback((wordsPerMinute: number) => {
-    const clamped = Math.round(
-      Math.max(WPM_MIN, Math.min(WPM_MAX, wordsPerMinute)),
-    );
-    updateStored((s) => ({ ...s, wordsPerMinute: clamped }));
-  }, []);
-
-  const setShowPunctuationGlyph = useCallback((showPunctuationGlyph: boolean) => {
-    updateStored((s) => ({ ...s, showPunctuationGlyph }));
-  }, []);
-
-  const setPunctuationGlyphLeadMs = useCallback((punctuationGlyphLeadMs: number) => {
-    const clamped = Math.round(
-      Math.max(0, Math.min(PUNCTUATION_GLYPH_LEAD_MAX_MS, punctuationGlyphLeadMs)),
-    );
-    updateStored((s) => ({ ...s, punctuationGlyphLeadMs: clamped }));
-  }, []);
-
-  const setPunctuationGlyphDurationMs = useCallback(
-    (punctuationGlyphDurationMs: number) => {
-      const clamped = Math.round(
-        Math.max(
-          0,
-          Math.min(PUNCTUATION_GLYPH_DURATION_MAX_MS, punctuationGlyphDurationMs),
-        ),
-      );
-      updateStored((s) => ({ ...s, punctuationGlyphDurationMs: clamped }));
-    },
-    [],
-  );
-
-  const setPunctuationGlyphAlwaysVisible = useCallback(
-    (punctuationGlyphAlwaysVisible: boolean) => {
-      updateStored((s) => ({ ...s, punctuationGlyphAlwaysVisible }));
-    },
-    [],
-  );
-
-  const setCenterPunctuationTittleVertically = useCallback(
-    (centerPunctuationTittleVertically: boolean) => {
-      updateStored((s) => ({ ...s, centerPunctuationTittleVertically }));
-    },
-    [],
-  );
-
-  const resetDefaults = useCallback(() => {
-    saveStored(DEFAULTS);
-    emitChange();
-  }, []);
-
-  const value: ReaderSettingsContextValue = useMemo(
-    () => ({
-      ...settings,
-      setFontSize,
-      setFontFamily,
-      setFocalColor,
-      setSentenceEndDurationMs,
-      setSpeechBreakDurationMs,
-      setWordsPerMinute,
-      setShowPunctuationGlyph,
-      setPunctuationGlyphLeadMs,
-      setPunctuationGlyphDurationMs,
-      setPunctuationGlyphAlwaysVisible,
-      setCenterPunctuationTittleVertically,
-      resetDefaults,
-    }),
-    [settings, setFontSize, setFontFamily, setFocalColor, setSentenceEndDurationMs, setSpeechBreakDurationMs, setWordsPerMinute, setShowPunctuationGlyph, setPunctuationGlyphLeadMs, setPunctuationGlyphDurationMs, setPunctuationGlyphAlwaysVisible, setCenterPunctuationTittleVertically, resetDefaults],
-  );
+  const value = useMemo(() => ({ ...settings, ...SETTERS }), [settings]);
 
   return (
     <ReaderSettingsContext.Provider value={value}>
@@ -345,24 +275,6 @@ export function ReaderSettingsProvider({ children }: { children: React.ReactNode
   );
 }
 
-export function useReaderSettings() {
-  const ctx = useContext(ReaderSettingsContext);
-  if (!ctx) {
-    return {
-      ...DEFAULTS,
-      setFontSize: () => {},
-      setFontFamily: () => {},
-      setFocalColor: () => {},
-      setSentenceEndDurationMs: () => {},
-      setSpeechBreakDurationMs: () => {},
-      setWordsPerMinute: () => {},
-      setShowPunctuationGlyph: () => {},
-      setPunctuationGlyphLeadMs: () => {},
-      setPunctuationGlyphDurationMs: () => {},
-      setPunctuationGlyphAlwaysVisible: () => {},
-      setCenterPunctuationTittleVertically: () => {},
-      resetDefaults: () => {},
-    };
-  }
-  return ctx;
+export function useReaderSettings(): ReaderSettingsContextValue {
+  return useContext(ReaderSettingsContext) ?? DETACHED_SETTINGS;
 }

@@ -24,60 +24,42 @@ export default function AboutPage() {
         </h1>
 
         <p className="text-lg leading-7 text-muted-foreground">
-          WordFlash shows text one word at a time in the same spot on screen.
-          Paste something you want to read or open an article by URL, then set
-          the pace in words per minute. A highlighted letter in each word gives
-          you a place to rest your gaze.
+          WordFlash shows text one word at a time in a fixed spot, so your eyes
+          stay still while the words come to you. Paste text or open an article,
+          pick a pace, and press play.
         </p>
 
         <section className="space-y-3">
-          <h2 className="mt-10 text-xl font-semibold">Reading one word at a time</h2>
+          <h2 className="mt-10 text-xl font-semibold">How it works</h2>
           <p className="leading-7 text-muted-foreground">
-            This method is called rapid serial visual presentation, or RSVP.
-            The words change while their position stays fixed, so you can read
-            without scanning across lines. WordFlash adds pauses at punctuation
-            and gives longer words, numbers, and unfamiliar names extra time.
+            The method is called rapid serial visual presentation (RSVP). Each
+            word is aligned on a highlighted letter that never moves, giving
+            your gaze a steady anchor. WordFlash pauses at punctuation and gives
+            long words, numbers, and unfamiliar names a little extra time.
           </p>
         </section>
 
         <section className="space-y-3">
-          <h2 className="mt-10 text-xl font-semibold">
-            Choosing a pace
-          </h2>
+          <h2 className="mt-10 text-xl font-semibold">Finding your pace</h2>
           <p className="leading-7 text-muted-foreground">
-            Start at a speed that lets you follow the meaning. Increase it when
-            reading feels comfortable, and slow down for dense or unfamiliar
-            material. A higher words-per-minute setting only helps if you can
-            still understand what you read. Pause or go back whenever you need
-            to reread a passage.
+            Speed only helps if you still understand what you read. Start
+            slow, speed up as it feels easy, and pause or step back whenever
+            you lose the thread.
           </p>
         </section>
 
         <section className="space-y-3">
-          <h2 className="mt-10 text-xl font-semibold">
-            The highlighted letter
-          </h2>
+          <h2 className="mt-10 text-xl font-semibold">Reading articles</h2>
           <p className="leading-7 text-muted-foreground">
-            WordFlash aligns each word around its highlighted letter. Short
-            words use a letter near the start, while longer words use one
-            further in. That letter stays in the same place as the words change,
-            giving your eyes a consistent point to follow.
-          </p>
-        </section>
-
-        <section className="space-y-3">
-          <h2 className="mt-10 text-xl font-semibold">Getting started</h2>
-          <p className="leading-7 text-muted-foreground">
-            Paste text on the home page or enter an article URL in the{" "}
+            Enter a URL in the{" "}
             <Link
               href="/reader"
               className="text-primary underline underline-offset-4 hover:opacity-80"
             >
               Article Reader
-            </Link>
-            . Press play to begin. The Article Reader highlights the current word
-            in the article; in compact view, switch between the article and speed
-            reader. Click a word to jump to it.
+            </Link>{" "}
+            to follow along in the full text. The current word stays
+            highlighted, and clicking any word jumps to it.
           </p>
         </section>
 

@@ -1,61 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
-  attachTrailingCommasToLinks,
   parseWords,
   parseWordsDetailed,
   getFocalCharacterIndex,
   getWordParts,
 } from "./text-preprocessing";
-
-describe("attachTrailingCommasToLinks", () => {
-  it("moves comma inside link when comma and space follow link", () => {
-    const html = '<a href="/x">link</a>, next';
-    expect(attachTrailingCommasToLinks(html)).toBe(
-      '<a href="/x">link,</a> next',
-    );
-  });
-
-  it("moves comma inside link when comma immediately follows link", () => {
-    const html = '<a href="/x">click</a>,';
-    expect(attachTrailingCommasToLinks(html)).toBe(
-      '<a href="/x">click,</a>',
-    );
-  });
-
-  it("moves comma inside link when space precedes comma", () => {
-    const html = '<a href="/x">here</a> , then';
-    expect(attachTrailingCommasToLinks(html)).toBe(
-      '<a href="/x">here,</a> then',
-    );
-  });
-
-  it("handles multiple links with trailing commas", () => {
-    const html =
-      '<p><a href="/a">first</a>, <a href="/b">second</a>, and more</p>';
-    expect(attachTrailingCommasToLinks(html)).toBe(
-      '<p><a href="/a">first,</a> <a href="/b">second,</a> and more</p>',
-    );
-  });
-
-  it("leaves links without trailing commas unchanged", () => {
-    const html = '<a href="/x">link</a> and more';
-    expect(attachTrailingCommasToLinks(html)).toBe(html);
-  });
-
-  it("handles link with multiple words", () => {
-    const html = '<a href="/x">click here</a>, please';
-    expect(attachTrailingCommasToLinks(html)).toBe(
-      '<a href="/x">click here,</a> please',
-    );
-  });
-
-  it("handles link with nested elements", () => {
-    const html = '<a href="/x">click <strong>here</strong></a>, now';
-    expect(attachTrailingCommasToLinks(html)).toBe(
-      '<a href="/x">click <strong>here</strong>,</a> now',
-    );
-  });
-});
 
 describe("parseWords", () => {
   describe("basic splitting on whitespace", () => {

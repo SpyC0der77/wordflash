@@ -9,7 +9,6 @@ export {
   calculateReadingTimeMs,
   getFirstProperNounFlags,
   getWordTiming,
-  getPunctuationGlyphTiming,
   getSentenceEndIndex,
   getSentenceToneMark,
   getSentenceToneMarkAt,
@@ -17,9 +16,8 @@ export {
   wordHasPausePunctuation,
   wordStartsSentence,
 } from "./word-timing";
-export type { WordTiming, WordTimingContext, PunctuationGlyphTiming, SentenceToneMark } from "./word-timing";
+export type { WordTiming, WordTimingContext, SentenceToneMark } from "./word-timing";
 export {
-  attachTrailingCommasToLinks,
   extractTextFromHtml,
   getFocalCharacterIndex,
   getWordParts,

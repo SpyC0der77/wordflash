@@ -1,6 +1,5 @@
 "use client";
 
-import { Settings } from "lucide-react";
 import Link from "next/link";
 import React, {
   useCallback,
@@ -11,23 +10,14 @@ import React, {
   useState,
   useSyncExternalStore,
 } from "react";
-import { Dialog } from "radix-ui";
 import { PunctuationGlyph } from "@/components/punctuation-glyph";
-import { ReaderSettingsContent } from "@/components/reader-settings-content";
+import { ReaderSettingsPanel } from "@/components/reader-settings-panel";
 import { HomeScrollMenu } from "@/components/home-scroll-menu";
 import { Button } from "@/components/ui/button";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui/drawer";
-import { useMediaQuery } from "@/hooks/use-media-query";
 import { NumberInput } from "@/components/ui/number-input";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
+import { isTypingInFocusedElement } from "@/lib/keyboard";
 import {
   FOCAL_COLORS,
   FONT_FAMILIES,
@@ -36,16 +26,21 @@ import {
   type FontFamilyKey,
   type FontSizeKey,
 } from "@/lib/reader-appearance";
+import {
+  DEFAULT_SENTENCE_END_MS,
+  DEFAULT_SPEECH_BREAK_MS,
+  WPM_MAX,
+  WPM_MIN,
+} from "@/lib/reader-defaults";
 import { useReaderSettings } from "@/lib/reader-settings-context";
 import { useProperNounGazetteer } from "@/lib/use-proper-noun-gazetteer";
 import { useReduceMotion } from "@/lib/reduce-motion-context";
 import { useReduceTransparency } from "@/lib/reduce-transparency-context";
-import { useTheme } from "@/lib/theme-context";
 import {
   calculateReadingTimeMs,
+  formatReadingTime,
   getFirstProperNounFlags,
   getWordTiming,
-  getPunctuationGlyphTiming,
   getSentenceToneMarkAt,
   getWordParts,
   parseWordsDetailed,
@@ -67,27 +62,24 @@ function readDraft() {
 const INPUT_PANEL_CLASS_NAME =
   "h-full min-h-44 w-full overflow-y-auto rounded-md border border-input bg-background px-3 py-3 text-base md:text-base leading-7 whitespace-pre-wrap break-words dark:bg-background shadow-none";
 
-const SENTENCE_END_DELAY_MS_AT_250_WPM = 500;
-const PAUSE_PUNCTUATION_DELAY_MS_AT_250_WPM = 250;
-const DEFAULT_SENTENCE_END_MS = 500;
-const DEFAULT_SPEECH_BREAK_MS = 250;
-
 const SENTENCE_TONE_FADE_MS_AT_250_WPM = 300;
+
+type InputTab = "edit" | "scrub";
+const INPUT_TABS: ReadonlyArray<{ id: InputTab; label: string }> = [
+  { id: "edit", label: "Edit" },
+  { id: "scrub", label: "Scrub" },
+];
+
+/** Multiplier that converts a duration tuned at 250 WPM to the current speed. */
+function wpmScale(wordsPerMinute: number): number {
+  return 250 / Math.max(1, Number.isFinite(wordsPerMinute) ? wordsPerMinute : 1);
+}
 
 function visibleSentenceCue(
   mark: SentenceToneMark | null,
 ): "?" | "!" | null {
   return mark === "?" || mark === "!" ? mark : null;
 }
-
-export {
-  FOCAL_COLORS,
-  FONT_FAMILIES,
-  FONT_SIZES,
-  type FocalColorKey,
-  type FontFamilyKey,
-  type FontSizeKey,
-};
 
 interface ReaderBaseProps {
   /** Increment after a user seeks in another view, even if the selected word is unchanged. */
@@ -130,25 +122,45 @@ interface ReaderTestProps extends ReaderBaseProps {
 type ReaderProps = ReaderFullProps | ReaderPanelProps | ReaderTestProps;
 
 export function Reader(props: ReaderProps): React.ReactElement | null {
-  const { reduceMotion, setReduceMotion } = useReduceMotion();
-  const { reduceTransparency, setReduceTransparency } = useReduceTransparency();
-  const { theme, setTheme } = useTheme();
+  const { reduceMotion } = useReduceMotion();
+  const { reduceTransparency } = useReduceTransparency();
   const readerSettings = useReaderSettings();
   const isFull = props.variant === "full";
   const isTest = props.variant === "test";
-  const controlledWordIndex = props.controlledWordIndex;
+  const panelProps = props.variant === "panel" ? props : undefined;
+  const isPanelFillHeight = Boolean(panelProps?.fillHeight);
+  const { controlledWordIndex, onWordIndexChange, onComplete, onPlaybackChange } = props;
 
-  const storedDraft = useSyncExternalStore(subscribeToDraft, readDraft, () => SAMPLE_TEXT);
-  const [inputText, setInputText] = useState<string | null>(
-    isFull ? null : (props as ReaderPanelProps | ReaderTestProps).text,
-  );
-  const [wordIndex, setWordIndex] = useState(() => controlledWordIndex ?? 0);
+  // The full reader follows saved settings; embedded readers take them from props.
+  const fontSize = isFull ? readerSettings.fontSize : (panelProps?.fontSize ?? "md");
+  const fontFamily = isFull ? readerSettings.fontFamily : (panelProps?.fontFamily ?? "serif");
+  const focalColor = isFull ? readerSettings.focalColor : (panelProps?.focalColor ?? "rose");
+  const sentenceEndDurationMs = isFull
+    ? readerSettings.sentenceEndDurationMs
+    : (props.sentenceEndDurationMsAt250Wpm ?? DEFAULT_SENTENCE_END_MS);
+  const speechBreakDurationMs = isFull
+    ? readerSettings.speechBreakDurationMs
+    : (props.speechBreakDurationMsAt250Wpm ?? DEFAULT_SPEECH_BREAK_MS);
+  const {
+    showPunctuationGlyph,
+    punctuationGlyphLeadMs: punctuationGlyphLeadMsAt250Wpm,
+    punctuationGlyphDurationMs: punctuationGlyphDurationMsAt250Wpm,
+    punctuationGlyphAlwaysVisible,
+    centerPunctuationTittleVertically,
+  } = readerSettings;
+
   const wordsPerMinute = props.wordsPerMinute ?? readerSettings.wordsPerMinute;
   const setWordsPerMinute =
     props.onWordsPerMinuteChange ??
     (props.wordsPerMinute !== undefined
       ? () => {}
       : readerSettings.setWordsPerMinute);
+
+  const storedDraft = useSyncExternalStore(subscribeToDraft, readDraft, () => SAMPLE_TEXT);
+  const [inputText, setInputText] = useState<string | null>(null);
+  const text = props.variant === "full" ? (inputText ?? storedDraft) : props.text;
+
+  const [wordIndex, setWordIndex] = useState(() => controlledWordIndex ?? 0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [previousPauseRequest, setPreviousPauseRequest] = useState(props.pauseRequest);
   if (previousPauseRequest !== props.pauseRequest) {
@@ -160,64 +172,21 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     document.addEventListener("visibilitychange", pauseWhenHidden);
     return () => document.removeEventListener("visibilitychange", pauseWhenHidden);
   }, []);
-  const onPlaybackChange = props.onPlaybackChange;
   useEffect(() => {
     onPlaybackChange?.(isPlaying);
   }, [isPlaying, onPlaybackChange]);
+
   const [completedText, setCompletedText] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const playbackBlocked = isSettingsOpen || Boolean(props.playbackBlocked);
   if (playbackBlocked && isPlaying) setIsPlaying(false);
-  const [inputTab, setInputTab] = useState<"edit" | "scrub">("edit");
-  const isDesktop = useMediaQuery("(min-width: 768px)");
+
+  const [inputTab, setInputTab] = useState<InputTab>("edit");
   const scrubContainerRef = useRef<HTMLDivElement>(null);
-  const editTabRef = useRef<HTMLButtonElement>(null);
-  const scrubTabRef = useRef<HTMLButtonElement>(null);
+  const tabRefs = useRef<Record<InputTab, HTMLButtonElement | null>>({ edit: null, scrub: null });
   const tabListRef = useRef<HTMLDivElement>(null);
-  const [pillStyle, setPillStyle] = useState<{
-    left: number;
-    width: number;
-  } | null>(null);
-  const fontSize = isFull
-    ? readerSettings.fontSize
-    : ((props as ReaderPanelProps).fontSize ?? "md");
-  const fontFamily = isFull
-    ? readerSettings.fontFamily
-    : ((props as ReaderPanelProps).fontFamily ?? "serif");
-  const focalColor = isFull
-    ? readerSettings.focalColor
-    : ((props as ReaderPanelProps).focalColor ?? "rose");
-  const sentenceEndDurationMs = isFull
-    ? readerSettings.sentenceEndDurationMs
-    : ((props as ReaderPanelProps).sentenceEndDurationMsAt250Wpm ??
-      DEFAULT_SENTENCE_END_MS);
-  const speechBreakDurationMs = isFull
-    ? readerSettings.speechBreakDurationMs
-    : ((props as ReaderPanelProps).speechBreakDurationMsAt250Wpm ??
-      DEFAULT_SPEECH_BREAK_MS);
-  const setFontSize = readerSettings.setFontSize;
-  const setFontFamily = readerSettings.setFontFamily;
-  const setFocalColor = readerSettings.setFocalColor;
-  const setSentenceEndDurationMs = readerSettings.setSentenceEndDurationMs;
-  const setSpeechBreakDurationMs = readerSettings.setSpeechBreakDurationMs;
-  const showPunctuationGlyph = readerSettings.showPunctuationGlyph;
-  const setShowPunctuationGlyph = readerSettings.setShowPunctuationGlyph;
-  const punctuationGlyphLeadMsAt250Wpm =
-    readerSettings.punctuationGlyphLeadMs;
-  const setPunctuationGlyphLeadMs = readerSettings.setPunctuationGlyphLeadMs;
-  const punctuationGlyphDurationMsAt250Wpm =
-    readerSettings.punctuationGlyphDurationMs;
-  const setPunctuationGlyphDurationMs =
-    readerSettings.setPunctuationGlyphDurationMs;
-  const punctuationGlyphAlwaysVisible =
-    readerSettings.punctuationGlyphAlwaysVisible;
-  const setPunctuationGlyphAlwaysVisible =
-    readerSettings.setPunctuationGlyphAlwaysVisible;
-  const centerPunctuationTittleVertically =
-    readerSettings.centerPunctuationTittleVertically;
-  const setCenterPunctuationTittleVertically =
-    readerSettings.setCenterPunctuationTittleVertically;
-  const resetDefaults = readerSettings.resetDefaults;
+  const [pillStyle, setPillStyle] = useState<{ left: number; width: number } | null>(null);
+
   const timeoutRef = useRef<number | null>(null);
   const properNounGazetteer = useProperNounGazetteer();
   const [isGlyphLeading, setIsGlyphLeading] = useState(false);
@@ -226,27 +195,13 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   const rsvpRightRef = useRef<HTMLSpanElement>(null);
   const rsvpRowRef = useRef<HTMLDivElement>(null);
 
-  const effectiveSentenceEndMs = isFull
-    ? sentenceEndDurationMs
-    : (props.sentenceEndDurationMsAt250Wpm ?? SENTENCE_END_DELAY_MS_AT_250_WPM);
-  const effectiveSpeechBreakMs = isFull
-    ? speechBreakDurationMs
-    : (props.speechBreakDurationMsAt250Wpm ??
-      PAUSE_PUNCTUATION_DELAY_MS_AT_250_WPM);
-
-  const text = isFull
-    ? (inputText ?? storedDraft)
-    : (props as ReaderPanelProps | ReaderTestProps).text;
   const { words, hasLineBreakAfter, newlinesAfter, leadingNewlines, prefixBefore } =
     useMemo(() => parseWordsDetailed(text), [text]);
   const firstProperNounFlags = useMemo(
     () => getFirstProperNounFlags(words, properNounGazetteer),
     [words, properNounGazetteer],
   );
-  const onWordIndexChange =
-    "onWordIndexChange" in props ? props.onWordIndexChange : undefined;
-  const effectiveWordIndex =
-    controlledWordIndex !== undefined ? controlledWordIndex : wordIndex;
+  const effectiveWordIndex = controlledWordIndex ?? wordIndex;
   const activeWordIndex =
     words.length === 0 ? 0 : Math.min(effectiveWordIndex, words.length - 1);
   const [playbackPosition, setPlaybackPosition] = useState({
@@ -271,11 +226,16 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
       : activeWordIndex;
   const sentenceToneMark = useMemo(() => {
     if (words.length === 0) return null;
-    return visibleSentenceCue(
-      getSentenceToneMarkAt(words, glyphWordIndex),
-    );
+    return visibleSentenceCue(getSentenceToneMarkAt(words, glyphWordIndex));
   }, [words, glyphWordIndex]);
-  const mountedRef = useRef(false);
+
+  const scale = wpmScale(wordsPerMinute);
+  const glyphLeadMs = Math.max(0, Math.round(punctuationGlyphLeadMsAt250Wpm * scale));
+  const glyphVisibleMs = Math.round(punctuationGlyphDurationMsAt250Wpm * scale);
+  const sentenceToneFadeMs = Math.max(
+    50,
+    Math.round(SENTENCE_TONE_FADE_MS_AT_250_WPM * scale),
+  );
 
   const setEffectiveWordIndex = useCallback(
     (index: number) => {
@@ -289,6 +249,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     [controlledWordIndex, onWordIndexChange],
   );
 
+  const mountedRef = useRef(false);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -305,17 +266,14 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   // Measure and update pill position for tab switcher
   useLayoutEffect(() => {
     if (!isFull) return;
-    const activeRef = inputTab === "edit" ? editTabRef : scrubTabRef;
-    const tab = activeRef.current;
+    const tab = tabRefs.current[inputTab];
     const list = tabListRef.current;
     if (!tab || !list) return;
     const tabRect = tab.getBoundingClientRect();
     const listRect = list.getBoundingClientRect();
-    const baseLeft = tabRect.left - listRect.left;
-    const baseWidth = tabRect.width;
     setPillStyle({
-      left: baseLeft - (inputTab === "edit" ? 1 : 0),
-      width: baseWidth - (inputTab === "scrub" ? 1 : 0),
+      left: tabRect.left - listRect.left - (inputTab === "edit" ? 1 : 0),
+      width: tabRect.width - (inputTab === "scrub" ? 1 : 0),
     });
   }, [isFull, inputTab]);
 
@@ -323,55 +281,44 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   useEffect(() => {
     if (!isFull || inputTab !== "scrub" || words.length === 0) return;
     const container = scrubContainerRef.current;
-    if (!container) return;
-    const span = container.querySelector(
+    const span = container?.querySelector<HTMLElement>(
       `[data-word-index="${activeWordIndex}"]`,
-    ) as HTMLElement | null;
-    if (span) {
-      const rect = span.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
-      const margin = 40;
-      const isComfortablyVisible =
-        rect.top >= containerRect.top + margin &&
-        rect.bottom <= containerRect.bottom - margin;
-      if (!isComfortablyVisible) {
-        const behavior = reduceMotion ? "auto" : "smooth";
-        // Keep auto-follow inside the text panel. scrollIntoView also pans the
-        // page's visual viewport when the reader has pinch-zoomed in.
-        container.scrollTo({
-          top: container.scrollTop + rect.top - containerRect.top
-            - (container.clientHeight - rect.height) / 2,
-          behavior,
-        });
-      }
-    }
+    );
+    if (!container || !span) return;
+    const rect = span.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const margin = 40;
+    const isComfortablyVisible =
+      rect.top >= containerRect.top + margin &&
+      rect.bottom <= containerRect.bottom - margin;
+    if (isComfortablyVisible) return;
+    // Keep auto-follow inside the text panel. scrollIntoView also pans the
+    // page's visual viewport when the reader has pinch-zoomed in.
+    container.scrollTo({
+      top: container.scrollTop + rect.top - containerRect.top
+        - (container.clientHeight - rect.height) / 2,
+      behavior: reduceMotion ? "auto" : "smooth",
+    });
   }, [isFull, inputTab, activeWordIndex, words.length, reduceMotion]);
 
   useEffect(() => {
     if (!isPlaying || words.length === 0) return;
 
-    const wpmScale =
-      250 / Math.max(1, Number.isFinite(wordsPerMinute) ? wordsPerMinute : 1);
     const currentWord = words[activeWordIndex] ?? "";
+    const nextWord = words[activeWordIndex + 1];
+    const isLastWord = activeWordIndex >= words.length - 1;
     const delay = getWordTiming(
       currentWord,
       wordsPerMinute,
-      effectiveSentenceEndMs,
-      effectiveSpeechBreakMs,
+      sentenceEndDurationMs,
+      speechBreakDurationMs,
       {
-        nextWord: words[activeWordIndex + 1],
+        nextWord,
         hasLineBreakAfter: hasLineBreakAfter[activeWordIndex],
         isFirstProperNoun: firstProperNounFlags[activeWordIndex],
       },
     ).totalMs;
-    const rawLeadMs = Math.max(
-      0,
-      Math.round(punctuationGlyphLeadMsAt250Wpm * wpmScale),
-    );
-    const leadMs = Math.max(0, Math.min(rawLeadMs, delay));
-    const visibleMs = Math.round(
-      punctuationGlyphDurationMsAt250Wpm * wpmScale,
-    );
+    const leadMs = Math.min(glyphLeadMs, delay);
     const startsSentence = wordStartsSentence(words, activeWordIndex);
 
     // Reset lead when the current word changes; the timeout below may turn it back on.
@@ -380,7 +327,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     setGlyphHoldExpired(!startsSentence);
 
     timeoutRef.current = window.setTimeout(() => {
-      if (activeWordIndex >= words.length - 1) {
+      if (isLastWord) {
         setCompletedText(text);
         setIsPlaying(false);
         return;
@@ -389,33 +336,24 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     }, delay);
 
     const upcomingCue = visibleSentenceCue(
-      getSentenceToneMarkAt(
-        words,
-        Math.min(activeWordIndex + 1, words.length - 1),
-      ),
+      getSentenceToneMarkAt(words, Math.min(activeWordIndex + 1, words.length - 1)),
     );
-    const currentCue = visibleSentenceCue(
-      getSentenceToneMarkAt(words, activeWordIndex),
-    );
+    const currentCue = visibleSentenceCue(getSentenceToneMarkAt(words, activeWordIndex));
 
     const glyphHideTimeout =
       showPunctuationGlyph &&
       startsSentence &&
       currentCue !== null &&
       !punctuationGlyphAlwaysVisible
-        ? window.setTimeout(() => {
-            setGlyphHoldExpired(true);
-          }, visibleMs)
+        ? window.setTimeout(() => setGlyphHoldExpired(true), glyphVisibleMs)
         : null;
 
     const glyphLeadTimeout =
       showPunctuationGlyph &&
       upcomingCue !== null &&
-      wordEndsSentence(currentWord, words[activeWordIndex + 1]) &&
-      activeWordIndex < words.length - 1
-        ? window.setTimeout(() => {
-            setIsGlyphLeading(true);
-          }, Math.max(0, delay - leadMs))
+      wordEndsSentence(currentWord, nextWord) &&
+      !isLastWord
+        ? window.setTimeout(() => setIsGlyphLeading(true), Math.max(0, delay - leadMs))
         : null;
 
     return () => {
@@ -429,16 +367,15 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   }, [
     isPlaying,
     text,
-    words.length,
     wordsPerMinute,
     activeWordIndex,
     words,
     hasLineBreakAfter,
     firstProperNounFlags,
-    effectiveSentenceEndMs,
-    effectiveSpeechBreakMs,
-    punctuationGlyphLeadMsAt250Wpm,
-    punctuationGlyphDurationMsAt250Wpm,
+    sentenceEndDurationMs,
+    speechBreakDurationMs,
+    glyphLeadMs,
+    glyphVisibleMs,
     punctuationGlyphAlwaysVisible,
     showPunctuationGlyph,
     setEffectiveWordIndex,
@@ -449,15 +386,14 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     !isPlaying &&
     completedText === text &&
     activeWordIndex >= words.length - 1;
-  const hasCalledCompleteRef = useRef(false);
 
   const remainingReadingTimeMs = useMemo(
     () =>
       calculateReadingTimeMs(
         words,
         wordsPerMinute,
-        effectiveSentenceEndMs,
-        effectiveSpeechBreakMs,
+        sentenceEndDurationMs,
+        speechBreakDurationMs,
         activeWordIndex,
         words.length - 1,
         hasLineBreakAfter,
@@ -468,18 +404,13 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
       hasLineBreakAfter,
       wordsPerMinute,
       activeWordIndex,
-      effectiveSentenceEndMs,
-      effectiveSpeechBreakMs,
+      sentenceEndDurationMs,
+      speechBreakDurationMs,
       properNounGazetteer,
     ],
   );
 
-  const readingTimeLabel =
-    remainingReadingTimeMs >= 60000
-      ? `~${Math.round(remainingReadingTimeMs / 60000)} min`
-      : `~${Math.round(remainingReadingTimeMs / 1000)} sec`;
-
-  const onComplete = "onComplete" in props ? props.onComplete : undefined;
+  const hasCalledCompleteRef = useRef(false);
   useEffect(() => {
     if (!isFinished) hasCalledCompleteRef.current = false;
     if (isFinished && onComplete && !hasCalledCompleteRef.current) {
@@ -496,6 +427,11 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
     } else {
       setIsPlaying((prev) => !prev);
     }
+  }
+
+  function seekTo(index: number) {
+    setEffectiveWordIndex(index);
+    setIsPlaying(false);
   }
 
   const handlersRef = useRef({
@@ -515,18 +451,9 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      const el = document.activeElement;
-      const tag = el?.tagName.toLowerCase();
-      if (
-        tag === "input" ||
-        tag === "textarea" ||
-        tag === "select" ||
-        el?.getAttribute("contenteditable") === "true" ||
-        el?.closest("[role='dialog']")
-      ) {
-        return;
-      }
+      if (isTypingInFocusedElement()) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const el = document.activeElement;
       if (el?.closest("[role=tablist], [role=slider], [role=menu], [role=menuitem]")) return;
 
       const {
@@ -538,7 +465,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
       if (len === 0) return;
 
       if (e.code === "Space") {
-        if (tag === "button" || el?.closest("[role=button], [role=menu], [role=menuitem]")) return;
+        if (el?.tagName.toLowerCase() === "button" || el?.closest("[role=button], [role=menu], [role=menuitem]")) return;
         e.preventDefault();
         if (e.repeat) return;
         playPause();
@@ -550,27 +477,15 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
         setIsPlaying(true);
         return;
       }
-      if (e.code === "ArrowLeft") {
+      const seekTargets: Record<string, number> = {
+        ArrowLeft: Math.max(0, idx - 1),
+        ArrowRight: Math.min(len - 1, idx + 1),
+        Home: 0,
+        End: len - 1,
+      };
+      if (e.code in seekTargets) {
         e.preventDefault();
-        setIndex(Math.max(0, idx - 1));
-        setIsPlaying(false);
-        return;
-      }
-      if (e.code === "ArrowRight") {
-        e.preventDefault();
-        setIndex(Math.min(len - 1, idx + 1));
-        setIsPlaying(false);
-        return;
-      }
-      if (e.code === "Home") {
-        e.preventDefault();
-        setIndex(0);
-        setIsPlaying(false);
-        return;
-      }
-      if (e.code === "End") {
-        e.preventDefault();
-        setIndex(len - 1);
+        setIndex(seekTargets[e.code]);
         setIsPlaying(false);
       }
     }
@@ -581,94 +496,51 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   function handleTextChange(value: string) {
     setInputText(value);
     try { sessionStorage.setItem(DRAFT_KEY, value); } catch { /* Keep the in-memory draft. */ }
-    setEffectiveWordIndex(0);
-    setIsPlaying(false);
+    seekTo(0);
   }
 
-  const isPanelFillHeight =
-    props.variant === "panel" && Boolean((props as ReaderPanelProps).fillHeight);
-
-  const effectiveFontSize = isFull
-    ? fontSize
-    : ((props as ReaderPanelProps).fontSize ?? "md");
-  const effectiveFontFamily = isFull
-    ? fontFamily
-    : ((props as ReaderPanelProps).fontFamily ?? "serif");
-  const effectiveFocalColor = isFull
-    ? focalColor
-    : ((props as ReaderPanelProps).focalColor ?? "rose");
-
-  const wordDisplayClassName = cn(
-    FONT_SIZES[effectiveFontSize].className,
-    FONT_FAMILIES[effectiveFontFamily].className,
-  );
-  const focalColorClassName = FOCAL_COLORS[effectiveFocalColor].className;
-  const wpmScale = 250 / wordsPerMinute;
-  const sentenceToneFadeMs = Math.max(
-    50,
-    Math.round(SENTENCE_TONE_FADE_MS_AT_250_WPM * wpmScale),
-  );
-  const sentenceToneLeadMs = Math.max(
-    0,
-    Math.round(punctuationGlyphLeadMsAt250Wpm * wpmScale),
+  const fontFamilyClassName = FONT_FAMILIES[fontFamily].className;
+  const dimWhilePlaying = cn(
+    "transition-opacity duration-300",
+    isPlaying ? "opacity-40" : "opacity-100",
   );
   const isSentenceStart = wordStartsSentence(words, activeWordIndex);
-  const cueVisible = punctuationGlyphAlwaysVisible
-    ? true
-    : isPlaying &&
-      (isGlyphLeading || (isSentenceStart && !glyphHoldExpired));
-  const {
-    holdMs: sentenceToneHoldMs,
-    fadeOutMs: sentenceToneFadeOutMs,
-    fadeInMs: sentenceToneFadeInMs,
-  } = getPunctuationGlyphTiming(0, sentenceToneFadeMs, sentenceToneLeadMs);
+  const cueVisible =
+    punctuationGlyphAlwaysVisible ||
+    (isPlaying && (isGlyphLeading || (isSentenceStart && !glyphHoldExpired)));
 
+  // Center the focal character: shift the row by half the width difference of its sides.
   useLayoutEffect(() => {
-    const rowForCleanup = rsvpRowRef.current;
-    if (!rowForCleanup) return;
+    const row = rsvpRowRef.current;
+    const leftSide = rsvpLeftRef.current;
+    const rightSide = rsvpRightRef.current;
+    if (!row || !leftSide || !rightSide) return;
 
     let cancelled = false;
     function measure() {
-      if (cancelled) return;
-      const row = rsvpRowRef.current;
-      const le = rsvpLeftRef.current;
-      const re = rsvpRightRef.current;
-      if (!row || !le || !re) {
-        row?.style.removeProperty("transform");
-        return;
-      }
-      const l = le.getBoundingClientRect().width;
-      const r = re.getBoundingClientRect().width;
-      row.style.transform = `translateX(${(r - l) / 2}px)`;
-    }
-
-    const le = rsvpLeftRef.current;
-    const re = rsvpRightRef.current;
-    if (!le || !re) {
-      rowForCleanup.style.removeProperty("transform");
-      return;
+      if (cancelled || !row || !leftSide || !rightSide) return;
+      const offset =
+        (rightSide.getBoundingClientRect().width - leftSide.getBoundingClientRect().width) / 2;
+      row.style.transform = `translateX(${offset}px)`;
     }
 
     measure();
-    if (typeof document !== "undefined" && document.fonts?.ready) {
-      void document.fonts.ready.then(measure);
-    }
-
-    let ro: ResizeObserver | undefined;
-    if (typeof ResizeObserver !== "undefined") {
-      ro = new ResizeObserver(measure);
-      ro.observe(le);
-      ro.observe(re);
-    }
+    void document.fonts?.ready.then(measure);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : undefined;
+    ro?.observe(leftSide);
+    ro?.observe(rightSide);
 
     return () => {
       cancelled = true;
       ro?.disconnect();
-      rowForCleanup.style.removeProperty("transform");
+      row.style.removeProperty("transform");
     };
-  }, [left, focalCharacter, right, effectiveFontSize, effectiveFontFamily]);
+  }, [left, focalCharacter, right, fontSize, fontFamily]);
 
   if (!isFull && words.length === 0) return null;
+
+  const guideLineClassName =
+    "pointer-events-none absolute inset-x-0 z-[1] h-px bg-border/80 dark:bg-white/12";
 
   const content = (
     <>
@@ -692,50 +564,35 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
             <PunctuationGlyph
               mark={sentenceToneMark}
               fadingOut={!cueVisible || sentenceToneMark == null}
-              fadeInDurationMs={sentenceToneFadeInMs}
-              fadeOutDurationMs={sentenceToneFadeOutMs}
-              holdDurationMs={sentenceToneHoldMs}
+              fadeInDurationMs={glyphLeadMs}
+              fadeOutDurationMs={sentenceToneFadeMs}
+              holdDurationMs={0}
               centerTittleVertically={centerPunctuationTittleVertically}
-              fontFamilyClassName={FONT_FAMILIES[effectiveFontFamily].className}
+              fontFamilyClassName={fontFamilyClassName}
               reduceTransparency={reduceTransparency}
               reduceMotion={reduceMotion}
             />
           )}
           <div className="pointer-events-none absolute left-1/2 top-0 z-[1] h-full w-px -translate-x-1/2 bg-border dark:bg-white/20" />
-          <div
-            className={cn(
-              "pointer-events-none absolute inset-x-0 z-[1] h-px bg-border/80 dark:bg-white/12",
-              isPanelFillHeight ? "top-8 sm:top-14" : "top-14",
-            )}
-          />
-          <div
-            className={cn(
-              "pointer-events-none absolute inset-x-0 z-[1] h-px bg-border/80 dark:bg-white/12",
-              isPanelFillHeight ? "bottom-8 sm:bottom-14" : "bottom-14",
-            )}
-          />
+          <div className={cn(guideLineClassName, isPanelFillHeight ? "top-8 sm:top-14" : "top-14")} />
+          <div className={cn(guideLineClassName, isPanelFillHeight ? "bottom-8 sm:bottom-14" : "bottom-14")} />
 
           <div className="relative z-10 flex w-full max-w-2xl items-center justify-center px-3 sm:px-6">
             <div
               ref={rsvpRowRef}
               className={cn(
                 "inline-flex items-baseline leading-none",
-                wordDisplayClassName,
+                FONT_SIZES[fontSize].className,
+                fontFamilyClassName,
               )}
             >
-              <span
-                ref={rsvpLeftRef}
-                className="text-zinc-700 dark:text-zinc-100"
-              >
+              <span ref={rsvpLeftRef} className="text-zinc-700 dark:text-zinc-100">
                 {left}
               </span>
-              <span className={focalColorClassName}>
+              <span className={FOCAL_COLORS[focalColor].className}>
                 {focalCharacter || "•"}
               </span>
-              <span
-                ref={rsvpRightRef}
-                className="text-zinc-700 dark:text-zinc-100"
-              >
+              <span ref={rsvpRightRef} className="text-zinc-700 dark:text-zinc-100">
                 {right}
               </span>
             </div>
@@ -744,23 +601,21 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
 
         <div
           className={cn(
-            "mt-2 flex items-center justify-center gap-4 px-2 text-center text-sm text-zinc-700 transition-opacity duration-300 dark:text-muted-foreground sm:mt-3",
-            isPlaying ? "opacity-40" : "opacity-100",
+            "mt-2 flex items-center justify-center gap-4 px-2 text-center text-sm text-zinc-700 dark:text-muted-foreground sm:mt-3",
+            dimWhilePlaying,
           )}
         >
           <p>
             {words.length === 0 ? 0 : activeWordIndex + 1}/{words.length}
-            {readingTimeLabel && (
-              <span className="ml-2">· {readingTimeLabel}</span>
-            )}
+            <span className="ml-2">· {formatReadingTime(remainingReadingTimeMs)}</span>
           </p>
         </div>
         {words.length > 0 && !isTest && (
           <div
             className={cn(
-              "mx-auto mt-3 w-full max-w-4xl shrink-0 px-1 transition-opacity duration-300 sm:mt-4 sm:px-2",
+              "mx-auto mt-3 w-full max-w-4xl shrink-0 px-1 sm:mt-4 sm:px-2",
               isPanelFillHeight ? "mb-4 sm:mb-6" : "mb-6",
-              isPlaying ? "opacity-40" : "opacity-100",
+              dimWhilePlaying,
             )}
           >
             <Slider
@@ -770,7 +625,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
               value={[activeWordIndex]}
               aria-label="Reading position"
               disabled={words.length < 2}
-              onValueChange={([v]) => { setEffectiveWordIndex(v ?? 0); setIsPlaying(false); }}
+              onValueChange={([v]) => seekTo(v ?? 0)}
               className="cursor-pointer"
             />
           </div>
@@ -779,8 +634,8 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
 
       <section
         className={cn(
-          "flex w-full flex-wrap items-center justify-center gap-3 transition-opacity duration-300 sm:gap-4",
-          isPlaying ? "opacity-40" : "opacity-100",
+          "flex w-full flex-wrap items-center justify-center gap-3 sm:gap-4",
+          dimWhilePlaying,
         )}
       >
         <Button
@@ -796,8 +651,8 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
           <NumberInput
             value={wordsPerMinute}
             onChange={setWordsPerMinute}
-            min={50}
-            max={1200}
+            min={WPM_MIN}
+            max={WPM_MAX}
             step={50}
             unit="wpm"
             label="Reading speed"
@@ -808,18 +663,19 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   );
 
   if (props.variant === "panel") {
-    const { className } = props;
     return (
       <div
         className={cn(
           "flex flex-col gap-4 bg-background px-4 py-4 sm:px-8",
-          !isPanelFillHeight && "border-t border-border",
-          !isPanelFillHeight &&
-            (reduceTransparency
-              ? "bg-background"
-              : "bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"),
-          isPanelFillHeight && "min-h-0",
-          className,
+          isPanelFillHeight
+            ? "min-h-0"
+            : cn(
+                "border-t border-border",
+                reduceTransparency
+                  ? "bg-background"
+                  : "bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80",
+              ),
+          props.className,
         )}
       >
         {content}
@@ -828,188 +684,34 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
   }
 
   if (props.variant === "test") {
-    const { className } = props;
     return (
-      <div className={cn("flex flex-col gap-4", className)}>{content}</div>
+      <div className={cn("flex flex-col gap-4", props.className)}>{content}</div>
     );
   }
+
+  const navLinkClassName =
+    "text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline";
 
   return (
     <main className="relative mx-auto flex min-h-screen w-full max-w-5xl flex-col items-center px-4 py-10 sm:px-8">
       <HomeScrollMenu dimmed={isPlaying}>
-        <Link
-          href="/reader"
-          className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-        >
+        <Link href="/reader" className={navLinkClassName}>
           Article Reader
         </Link>
-        <Link
-          href="/about"
-          className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-        >
+        <Link href="/about" className={navLinkClassName}>
           About
         </Link>
-        {isDesktop ? (
-          <Dialog.Root open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-            <Dialog.Trigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Open settings"
-                className="size-8 sm:size-9"
-              >
-                <Settings className="size-5" />
-              </Button>
-            </Dialog.Trigger>
-            <Dialog.Portal>
-              <Dialog.Overlay
-                className={cn(
-                  "fixed inset-0 z-50",
-                  reduceTransparency ? "bg-black" : "bg-black/80",
-                  "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-                )}
-              />
-              <Dialog.Content
-                data-settings-modal
-                className={cn(
-                  "fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-1.5rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border bg-background p-4 shadow-xl scrollbar-hide sm:rounded-xl sm:p-6",
-                  reduceTransparency ? "border-zinc-700" : "border-white/10",
-                  "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-                )}
-              >
-                <Dialog.Title className="mb-2 shrink-0 text-lg font-semibold text-foreground">
-                  Settings
-                </Dialog.Title>
-                <Dialog.Description className="mb-4 shrink-0 text-sm text-muted-foreground">
-                  Appearance, playback, and accessibility. Pause values are at
-                  250 WPM and scale with speed.
-                </Dialog.Description>
-                <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
-                  <ReaderSettingsContent
-                    idPrefix=""
-                    theme={theme}
-                    setTheme={setTheme}
-                    fontSize={fontSize}
-                    setFontSize={setFontSize}
-                    fontFamily={fontFamily}
-                    setFontFamily={setFontFamily}
-                    focalColor={focalColor}
-                    setFocalColor={setFocalColor}
-                    sentenceEndDurationMs={sentenceEndDurationMs}
-                    setSentenceEndDurationMs={setSentenceEndDurationMs}
-                    speechBreakDurationMs={speechBreakDurationMs}
-                    setSpeechBreakDurationMs={setSpeechBreakDurationMs}
-                    showPunctuationGlyph={showPunctuationGlyph}
-                    setShowPunctuationGlyph={setShowPunctuationGlyph}
-                    punctuationGlyphLeadMs={punctuationGlyphLeadMsAt250Wpm}
-                    setPunctuationGlyphLeadMs={setPunctuationGlyphLeadMs}
-                    punctuationGlyphDurationMs={
-                      punctuationGlyphDurationMsAt250Wpm
-                    }
-                    setPunctuationGlyphDurationMs={
-                      setPunctuationGlyphDurationMs
-                    }
-                    punctuationGlyphAlwaysVisible={
-                      punctuationGlyphAlwaysVisible
-                    }
-                    setPunctuationGlyphAlwaysVisible={
-                      setPunctuationGlyphAlwaysVisible
-                    }
-                    centerPunctuationTittleVertically={
-                      centerPunctuationTittleVertically
-                    }
-                    setCenterPunctuationTittleVertically={
-                      setCenterPunctuationTittleVertically
-                    }
-                    reduceTransparency={reduceTransparency}
-                    setReduceTransparency={setReduceTransparency}
-                    reduceMotion={reduceMotion}
-                    setReduceMotion={setReduceMotion}
-                    onResetDefaults={resetDefaults}
-                  />
-                </div>
-              </Dialog.Content>
-            </Dialog.Portal>
-          </Dialog.Root>
-        ) : (
-          <Drawer open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-            <DrawerTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Open settings"
-                className="size-8 sm:size-9"
-              >
-                <Settings className="size-5" />
-              </Button>
-            </DrawerTrigger>
-            <DrawerContent
-              data-settings-modal
-              className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden scrollbar-hide"
-              overlayClassName={reduceTransparency ? "bg-black" : undefined}
-            >
-              <DrawerHeader className="shrink-0 text-left">
-                <DrawerTitle>Settings</DrawerTitle>
-                <DrawerDescription>
-                  Appearance, playback, and accessibility. Pause values are at
-                  250 WPM and scale with speed.
-                </DrawerDescription>
-              </DrawerHeader>
-              <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide px-4 pb-6">
-                <ReaderSettingsContent
-                  idPrefix="drawer-"
-                  theme={theme}
-                  setTheme={setTheme}
-                  fontSize={fontSize}
-                  setFontSize={setFontSize}
-                  fontFamily={fontFamily}
-                  setFontFamily={setFontFamily}
-                  focalColor={focalColor}
-                  setFocalColor={setFocalColor}
-                  sentenceEndDurationMs={sentenceEndDurationMs}
-                  setSentenceEndDurationMs={setSentenceEndDurationMs}
-                  speechBreakDurationMs={speechBreakDurationMs}
-                  setSpeechBreakDurationMs={setSpeechBreakDurationMs}
-                  showPunctuationGlyph={showPunctuationGlyph}
-                  setShowPunctuationGlyph={setShowPunctuationGlyph}
-                  punctuationGlyphLeadMs={punctuationGlyphLeadMsAt250Wpm}
-                  setPunctuationGlyphLeadMs={setPunctuationGlyphLeadMs}
-                  punctuationGlyphDurationMs={
-                    punctuationGlyphDurationMsAt250Wpm
-                  }
-                  setPunctuationGlyphDurationMs={setPunctuationGlyphDurationMs}
-                  punctuationGlyphAlwaysVisible={
-                    punctuationGlyphAlwaysVisible
-                  }
-                  setPunctuationGlyphAlwaysVisible={
-                    setPunctuationGlyphAlwaysVisible
-                  }
-                  centerPunctuationTittleVertically={
-                    centerPunctuationTittleVertically
-                  }
-                  setCenterPunctuationTittleVertically={
-                    setCenterPunctuationTittleVertically
-                  }
-                  reduceTransparency={reduceTransparency}
-                  setReduceTransparency={setReduceTransparency}
-                  reduceMotion={reduceMotion}
-                  setReduceMotion={setReduceMotion}
-                  onResetDefaults={resetDefaults}
-                />
-              </div>
-            </DrawerContent>
-          </Drawer>
-        )}
+        <ReaderSettingsPanel
+          title="Settings"
+          open={isSettingsOpen}
+          onOpenChange={setIsSettingsOpen}
+          triggerClassName="size-8 sm:size-9"
+        />
       </HomeScrollMenu>
       <div className="min-h-0 flex-1 shrink-0" aria-hidden />
       {content}
       <div className="min-h-0 flex-1 shrink-0" aria-hidden />
-      <section
-        className={cn(
-          "w-full max-w-4xl pb-6 transition-opacity duration-300 sm:pb-0",
-          isPlaying ? "opacity-40" : "opacity-100",
-        )}
-      >
+      <section className={cn("w-full max-w-4xl pb-6 sm:pb-0", dimWhilePlaying)}>
         <div className="mb-2 flex items-center justify-between gap-2">
           <label
             htmlFor={inputTab === "edit" ? "reader-text" : undefined}
@@ -1027,7 +729,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
               const next = event.key === "Home" ? "edit" : event.key === "End" ? "scrub"
                 : inputTab === "edit" ? "scrub" : "edit";
               setInputTab(next);
-              (next === "edit" ? editTabRef : scrubTabRef).current?.focus({ preventScroll: true });
+              tabRefs.current[next]?.focus({ preventScroll: true });
             }}
             className="relative flex rounded-lg border border-border bg-muted/50 p-0.5"
           >
@@ -1048,49 +750,37 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
                 aria-hidden
               />
             )}
-            <button
-              ref={editTabRef}
-              type="button"
-              role="tab"
-              aria-selected={inputTab === "edit"}
-              tabIndex={inputTab === "edit" ? 0 : -1}
-              aria-controls="reader-text-panel"
-              id="reader-edit-tab"
-              onClick={() => setInputTab("edit")}
-              className={cn(
-                "relative z-10 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                inputTab === "edit"
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              Edit
-            </button>
-            <button
-              ref={scrubTabRef}
-              type="button"
-              role="tab"
-              aria-selected={inputTab === "scrub"}
-              tabIndex={inputTab === "scrub" ? 0 : -1}
-              aria-controls="reader-text-panel"
-              id="reader-scrub-tab"
-              onClick={() => setInputTab("scrub")}
-              className={cn(
-                "relative z-10 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                inputTab === "scrub"
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              Scrub
-            </button>
+            {INPUT_TABS.map((tab) => {
+              const selected = inputTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  ref={(node) => { tabRefs.current[tab.id] = node; }}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  tabIndex={selected ? 0 : -1}
+                  aria-controls="reader-text-panel"
+                  id={`reader-${tab.id}-tab`}
+                  onClick={() => setInputTab(tab.id)}
+                  className={cn(
+                    "relative z-10 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                    selected
+                      ? "text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
         </div>
-        <div id="reader-text-panel" role="tabpanel" aria-labelledby={inputTab === "edit" ? "reader-edit-tab" : "reader-scrub-tab"} className="h-44 min-h-44 resize-y overflow-hidden">
+        <div id="reader-text-panel" role="tabpanel" aria-labelledby={`reader-${inputTab}-tab`} className="h-44 min-h-44 resize-y overflow-hidden">
           {inputTab === "edit" ? (
             <Textarea
               id="reader-text"
-              value={inputText ?? storedDraft}
+              value={text}
               onChange={(e) => handleTextChange(e.target.value)}
               placeholder="Paste text here..."
               className={cn(
@@ -1121,10 +811,7 @@ export function Reader(props: ReaderProps): React.ReactElement | null {
                       key={i}
                       data-word-index={i}
                       className={cn(i === activeWordIndex && "reader-highlight")}
-                      onClick={() => {
-                        setEffectiveWordIndex(i);
-                        setIsPlaying(false);
-                      }}
+                      onClick={() => seekTo(i)}
                     >
                       {word}
                     </span>,

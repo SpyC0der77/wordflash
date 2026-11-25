@@ -33,6 +33,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   const { window } = parseHTML("<html><body><div id='root'></div></body></html>");
   vi.stubGlobal("window", window);
+  vi.stubGlobal("self", window);
   vi.stubGlobal("document", window.document);
   vi.stubGlobal("HTMLElement", window.HTMLElement);
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);

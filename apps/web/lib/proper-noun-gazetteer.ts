@@ -3,8 +3,8 @@ import {
   PROPER_NOUN_GAZETTEER_VERSION,
 } from "@wordflash/core";
 
-export const PROPER_NOUN_GAZETTEER_URL = "/proper-nouns.json";
-export const PROPER_NOUN_GAZETTEER_TIMEOUT_MS = 600;
+const PROPER_NOUN_GAZETTEER_URL = "/proper-nouns.json";
+const PROPER_NOUN_GAZETTEER_TIMEOUT_MS = 600;
 const STORAGE_KEY = `wordflash.proper-nouns.v${PROPER_NOUN_GAZETTEER_VERSION}`;
 
 type GazetteerListener = (gazetteer: ReadonlySet<string> | null) => void;
@@ -74,6 +74,10 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+/**
+ * Returns the gazetteer from memory or local storage immediately (refreshing it in the
+ * background), or waits up to `timeoutMs` for the first network copy.
+ */
 export async function loadProperNounGazetteer(options?: {
   url?: string;
   timeoutMs?: number;
@@ -81,37 +85,25 @@ export async function loadProperNounGazetteer(options?: {
 }): Promise<ReadonlySet<string> | null> {
   if (memoryCache) return memoryCache;
 
+  inFlight ??= fetchGazetteer(
+    options?.url ?? PROPER_NOUN_GAZETTEER_URL,
+    options?.fetch ?? fetch,
+  ).finally(() => {
+    inFlight = null;
+  });
+
   const stored = readStoredGazetteer();
   if (stored && stored.size > 0) {
     memoryCache = stored;
     notify(stored);
-    if (!inFlight) {
-      inFlight = fetchGazetteer(
-        options?.url ?? PROPER_NOUN_GAZETTEER_URL,
-        options?.fetch ?? fetch,
-      ).finally(() => {
-        inFlight = null;
-      });
-    }
     return stored;
-  }
-
-  const url = options?.url ?? PROPER_NOUN_GAZETTEER_URL;
-  const timeoutMs = options?.timeoutMs ?? PROPER_NOUN_GAZETTEER_TIMEOUT_MS;
-  const fetchImpl = options?.fetch ?? fetch;
-
-  if (!inFlight) {
-    inFlight = fetchGazetteer(url, fetchImpl).finally(() => {
-      inFlight = null;
-    });
   }
 
   const fetched = await Promise.race([
     inFlight,
-    sleep(timeoutMs).then(() => "timeout" as const),
+    sleep(options?.timeoutMs ?? PROPER_NOUN_GAZETTEER_TIMEOUT_MS).then(() => "timeout" as const),
   ]);
-  if (fetched === "timeout") return memoryCache;
-  return fetched;
+  return fetched === "timeout" ? memoryCache : fetched;
 }
 
 /** Test-only: clear in-memory fetch state. */

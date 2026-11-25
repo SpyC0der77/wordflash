@@ -27,12 +27,19 @@ import {
   type FontFamilyKey,
   type FontSizeKey,
 } from "@/lib/reader-appearance";
+import {
+  DEFAULT_SENTENCE_END_MS,
+  DEFAULT_SPEECH_BREAK_MS,
+  PAUSE_MAX_MS,
+  PUNCTUATION_GLYPH_DURATION_MAX_MS,
+  PUNCTUATION_GLYPH_LEAD_MAX_MS,
+} from "@/lib/reader-defaults";
 import { cn } from "@/lib/utils";
 
 const LABEL_CLASS =
   "text-sm font-medium text-zinc-600 dark:text-zinc-500";
 
-interface ReaderSettingsContentProps {
+export interface ReaderSettingsContentProps {
   idPrefix: string;
   theme: Theme;
   setTheme: (v: Theme) => void;
@@ -254,10 +261,10 @@ export function ReaderSettingsContent({
                 aria-label="Sentence end pause"
                 id={`${idPrefix}sentence-end`}
                 min={0}
-                max={1000}
+                max={PAUSE_MAX_MS}
                 step={50}
                 value={[sentenceEndDurationMs]}
-                onValueChange={([v]) => setSentenceEndDurationMs(v ?? 500)}
+                onValueChange={([v]) => setSentenceEndDurationMs(v ?? DEFAULT_SENTENCE_END_MS)}
               />
             </Field>
             <Field
@@ -268,10 +275,10 @@ export function ReaderSettingsContent({
                 aria-label="Speech break pause"
                 id={`${idPrefix}speech-break`}
                 min={0}
-                max={1000}
+                max={PAUSE_MAX_MS}
                 step={25}
                 value={[speechBreakDurationMs]}
-                onValueChange={([v]) => setSpeechBreakDurationMs(v ?? 250)}
+                onValueChange={([v]) => setSpeechBreakDurationMs(v ?? DEFAULT_SPEECH_BREAK_MS)}
               />
             </Field>
           </AccordionContent>
@@ -296,7 +303,7 @@ export function ReaderSettingsContent({
                     aria-label="Punctuation lead-in"
                     id={`${idPrefix}glyph-lead`}
                     min={0}
-                    max={200}
+                    max={PUNCTUATION_GLYPH_LEAD_MAX_MS}
                     step={10}
                     value={[punctuationGlyphLeadMs]}
                     onValueChange={([v]) =>
@@ -319,7 +326,7 @@ export function ReaderSettingsContent({
                       aria-label="Punctuation visible duration"
                       id={`${idPrefix}glyph-duration`}
                       min={0}
-                      max={1000}
+                      max={PUNCTUATION_GLYPH_DURATION_MAX_MS}
                       step={50}
                       value={[punctuationGlyphDurationMs]}
                       onValueChange={([v]) =>

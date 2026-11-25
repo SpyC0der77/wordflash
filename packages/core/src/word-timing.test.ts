@@ -4,7 +4,6 @@ import {
   FIRST_PROPER_NOUN_DELAY_MS_AT_250_WPM,
   getFirstProperNounFlags,
   getWordTiming,
-  getPunctuationGlyphTiming,
   getSentenceEndIndex,
   getSentenceToneMark,
   getSentenceToneMarkAt,
@@ -363,24 +362,6 @@ describe("wordStartsSentence", () => {
 
   it("returns false for an empty word list", () => {
     expect(wordStartsSentence([], 0)).toBe(false);
-  });
-});
-
-describe("getPunctuationGlyphTiming", () => {
-  it("uses visible duration as the hold, with independent fade and lead", () => {
-    expect(getPunctuationGlyphTiming(400, 300, 80)).toEqual({
-      holdMs: 400,
-      fadeOutMs: 300,
-      fadeInMs: 80,
-    });
-  });
-
-  it("clamps negative values to zero", () => {
-    expect(getPunctuationGlyphTiming(-10, -20, -30)).toEqual({
-      holdMs: 0,
-      fadeOutMs: 0,
-      fadeInMs: 0,
-    });
   });
 });
 

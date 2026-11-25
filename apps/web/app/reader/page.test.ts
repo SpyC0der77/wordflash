@@ -70,6 +70,7 @@ beforeEach(() => {
     matchMedia: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }), scrollBy() {} });
   window.HTMLElement.prototype.getBoundingClientRect = () => ({ top: 100, bottom: 120, height: 20, width: 100, left: 0, right: 100, x: 0, y: 100, toJSON() {} });
   vi.stubGlobal("window", window);
+  vi.stubGlobal("self", window);
   vi.stubGlobal("document", window.document);
   vi.stubGlobal("HTMLElement", window.HTMLElement);
   vi.stubGlobal("Text", window.Text);

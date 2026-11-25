@@ -1,22 +1,21 @@
 export {
-  FIRST_PROPER_NOUN_DELAY_MS_AT_250_WPM,
-  LINE_BREAK_PAUSE_MULTIPLIER,
-  attachTrailingCommasToLinks,
   calculateReadingTimeMs,
   extractTextFromHtml,
   getFirstProperNounFlags,
   getWordTiming,
-  getFocalCharacterIndex,
-  getPunctuationGlyphTiming,
-  getSentenceEndIndex,
   getSentenceToneMarkAt,
   getWordParts,
-  parseProperNounGazetteer,
   parseWords,
   parseWordsDetailed,
   wordEndsSentence,
-  wordHasPausePunctuation,
   wordStartsSentence,
   wrapWordsInHtml,
 } from "@wordflash/core";
 export type { SentenceToneMark } from "@wordflash/core";
+
+/** Compact label such as `~3 min` or `~40 sec`. */
+export function formatReadingTime(ms: number): string {
+  return ms >= 60000
+    ? `~${Math.round(ms / 60000)} min`
+    : `~${Math.round(ms / 1000)} sec`;
+}

@@ -335,17 +335,12 @@ export function getFirstProperNounFlags(
       i += 1;
     }
 
-    const spanKeys: string[] = [];
-    for (let j = start; j < i; j++) {
-      if (likely[j]) spanKeys.push(keys[j] ?? "");
-    }
-    for (let j = start; j < i; j++) {
-      if (likely[j] && !seen.has(keys[j])) {
-        flags[j] = true;
-        break;
-      }
-    }
-    for (const key of spanKeys) seen.add(key);
+    // Dwell once per multi-word name, on its first unseen part; then mark every part seen.
+    const spanIndexes: number[] = [];
+    for (let j = start; j < i; j++) if (likely[j]) spanIndexes.push(j);
+    const firstUnseen = spanIndexes.find((j) => !seen.has(keys[j]));
+    if (firstUnseen !== undefined) flags[firstUnseen] = true;
+    for (const j of spanIndexes) seen.add(keys[j]);
   }
 
   return flags;
@@ -452,14 +447,11 @@ export type SentenceToneMark = "." | "?" | "!";
  * `?` wins over `!`, which wins over `.`, so "What?!" is a question.
  */
 export function getSentenceToneMark(word: string): SentenceToneMark | null {
-  const trimmed = withoutClosingMarks(word);
-  if (!trimmed) return null;
-  const trailing = /[.!?…]+$/.exec(trimmed)?.[0];
+  const trailing = /[.!?…]+$/.exec(withoutClosingMarks(word))?.[0];
   if (!trailing) return null;
   if (trailing.includes("?")) return "?";
   if (trailing.includes("!")) return "!";
-  if (trailing.includes(".") || trailing.includes("…")) return ".";
-  return null;
+  return ".";
 }
 
 /**
@@ -503,28 +495,6 @@ export function getSentenceToneMarkAt(
   const end = getSentenceEndIndex(words, index);
   const word = words[end] ?? "";
   return getSentenceToneMark(word) ?? ".";
-}
-
-export interface PunctuationGlyphTiming {
-  holdMs: number;
-  fadeOutMs: number;
-  fadeInMs: number;
-}
-
-/**
- * Flash the sentence-tone watermark at the start of a sentence: fade in over
- * `leadMs`, stay for `visibleMs`, then fade out over `fadeMs`.
- */
-export function getPunctuationGlyphTiming(
-  visibleMs: number,
-  fadeMs: number,
-  leadMs: number,
-): PunctuationGlyphTiming {
-  return {
-    holdMs: Math.max(0, visibleMs),
-    fadeOutMs: Math.max(0, fadeMs),
-    fadeInMs: Math.max(0, leadMs),
-  };
 }
 
 /**

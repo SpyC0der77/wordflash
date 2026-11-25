@@ -25,22 +25,12 @@ import {
   Link2,
   Loader2,
   Menu,
-  Settings,
   X,
 } from "lucide-react";
 import { Dialog } from "radix-ui";
 import { Reader } from "@/components/reader";
-import { ReaderSettingsContent } from "@/components/reader-settings-content";
+import { ReaderSettingsPanel } from "@/components/reader-settings-panel";
 import type { FontSizeKey } from "@/lib/reader-appearance";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui/drawer";
-import { useMediaQuery } from "@/hooks/use-media-query";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,6 +40,9 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { DIALOG_CONTENT_ANIMATION, dialogOverlayClassName } from "@/lib/dialog-styles";
+import { isTypingInFocusedElement } from "@/lib/keyboard";
+import { DEFAULT_WORDS_PER_MINUTE, WPM_MAX, WPM_MIN } from "@/lib/reader-defaults";
 import { useReaderSettings } from "@/lib/reader-settings-context";
 import { useReduceMotion } from "@/lib/reduce-motion-context";
 import { useReduceTransparency } from "@/lib/reduce-transparency-context";
@@ -57,6 +50,7 @@ import { useTheme, type Theme } from "@/lib/theme-context";
 import {
   calculateReadingTimeMs,
   extractTextFromHtml,
+  formatReadingTime,
   parseWords,
   parseWordsDetailed,
   wrapWordsInHtml,
@@ -250,11 +244,6 @@ function loadReadingPositions(): Record<string, number> {
   return {};
 }
 
-function getReadingPositionForUrl(url: string): number | undefined {
-  const positions = loadReadingPositions();
-  return positions[url];
-}
-
 function saveReadingPosition(url: string, wordIndex: number) {
   if (typeof window === "undefined") return;
   try {
@@ -287,17 +276,14 @@ interface PreviousArticle {
   title: string;
 }
 
-const WPM_MIN = 50;
-const WPM_MAX = 1200;
-/** Matches persisted default; omit `wpm` from URL when equal (see copy-link and nuqs clear-on-default). */
-const WPM_DEFAULT = 300;
+/** Below this viewport height (or on narrow screens) the article and reader share one column. */
+const COMPACT_VIEW_MIN_HEIGHT = 650;
 
 export default function ReaderPage() {
   const [queryStates, setQueryStates] = useQueryStates(readerSearchParams);
-  const { reduceMotion, setReduceMotion } = useReduceMotion();
-  const { reduceTransparency, setReduceTransparency } = useReduceTransparency();
+  const { reduceMotion } = useReduceMotion();
+  const { reduceTransparency } = useReduceTransparency();
   const { theme, setTheme } = useTheme();
-  const readerSettings = useReaderSettings();
   const {
     fontSize,
     fontFamily,
@@ -305,24 +291,10 @@ export default function ReaderPage() {
     sentenceEndDurationMs,
     speechBreakDurationMs,
     wordsPerMinute,
-    showPunctuationGlyph,
-    punctuationGlyphLeadMs,
-    punctuationGlyphDurationMs,
-    punctuationGlyphAlwaysVisible,
-    centerPunctuationTittleVertically,
     setFontSize,
-    setFontFamily,
-    setFocalColor,
-    setSentenceEndDurationMs,
-    setSpeechBreakDurationMs,
     setWordsPerMinute,
-    setShowPunctuationGlyph,
-    setPunctuationGlyphLeadMs,
-    setPunctuationGlyphDurationMs,
-    setPunctuationGlyphAlwaysVisible,
-    setCenterPunctuationTittleVertically,
     resetDefaults,
-  } = readerSettings;
+  } = useReaderSettings();
 
   const handleResetDefaults = useCallback(async () => {
     resetDefaults();
@@ -361,9 +333,10 @@ export default function ReaderPage() {
   const handleWordsPerMinuteChange = useCallback(
     (next: number) => {
       setWordsPerMinute(next);
+      // Omit the default from the URL (nuqs clears `wpm: 0`; copy-link skips it too).
       setQueryStates((prev) => ({
         ...prev,
-        wpm: next === WPM_DEFAULT ? 0 : next,
+        wpm: next === DEFAULT_WORDS_PER_MINUTE ? 0 : next,
       }));
     },
     [setWordsPerMinute, setQueryStates],
@@ -379,7 +352,6 @@ export default function ReaderPage() {
   const [wordIndex, setWordIndex] = useState(0);
   const [pauseRequest, setPauseRequest] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const isDesktop = useMediaQuery("(min-width: 768px)");
   const [showArticleOnMobile, setShowArticleOnMobile] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const copyFeedbackTimeout = useRef<number | undefined>(undefined);
@@ -431,20 +403,14 @@ export default function ReaderPage() {
         span.scrollIntoView({ behavior: scrollBehavior, block: "center" });
       }
     },
-    [articleHeaderRef, panelRef, articleScrollContainerRef, reduceMotion],
+    [reduceMotion],
   );
 
-  // Inline formatting is preserved; tokenization handles boundaries across nodes.
-  const processedContent = useMemo(
-    () =>
-      article?.content ?? null,
-    [article?.content],
-  );
-
-  // Use same word-boundary logic as wrapWordsInHtml so Reader View highlight matches Reader.
+  // Same word boundaries as wrapWordsInHtml, so article highlights match the Reader's index.
+  const articleContent = article?.content;
   const articleText = useMemo(
-    () => (processedContent ? extractTextFromHtml(processedContent) : ""),
-    [processedContent],
+    () => (articleContent ? extractTextFromHtml(articleContent) : ""),
+    [articleContent],
   );
 
   const pendingPosition = useRef<{ url: string; index: number } | null>(null);
@@ -495,8 +461,6 @@ export default function ReaderPage() {
     }
   }, []);
 
-  const COMPACT_VIEW_MIN_HEIGHT = 650;
-
   const [isCompactView, setIsCompactView] = useState(true);
   useEffect(() => {
     const mqWide = window.matchMedia("(min-width: 768px)");
@@ -534,9 +498,13 @@ export default function ReaderPage() {
     };
   }, [article, isCompactView]);
 
-  const loadArticle = useCallback(async (articleUrl: string) => {
+  const cancelRequest = useCallback(() => {
     requestRef.current?.abort();
     requestRef.current = null;
+  }, []);
+
+  const loadArticle = useCallback(async (articleUrl: string) => {
+    cancelRequest();
     let trimmed: string;
     try { trimmed = normalizeArticleUrl(articleUrl); }
     catch (err) {
@@ -573,7 +541,7 @@ export default function ReaderPage() {
       )).length;
       if (!wordCount) throw new Error("This page has no readable text. Try another article, or paste the text on the home page.");
       const nextWrappedContent = wrapWordsInHtml(data.content);
-      const storedIndex = getReadingPositionForUrl(trimmed);
+      const storedIndex = loadReadingPositions()[trimmed];
       const restoredIndex = typeof storedIndex === "number" && Number.isFinite(storedIndex)
         ? Math.min(Math.max(0, Math.floor(storedIndex)), Math.max(0, wordCount - 1)) : 0;
       setWordIndex(restoredIndex);
@@ -605,7 +573,7 @@ export default function ReaderPage() {
     } finally {
       if (requestRef.current === controller) setIsLoading(false);
     }
-  }, [flushPosition]);
+  }, [cancelRequest, flushPosition]);
 
   useEffect(() => {
     try {
@@ -635,8 +603,7 @@ export default function ReaderPage() {
       loadArticle(paramUrl);
     } else {
       flushPosition();
-      requestRef.current?.abort();
-      requestRef.current = null;
+      cancelRequest();
       setIsLoading(false);
       setUrl("");
       setError(null);
@@ -645,7 +612,7 @@ export default function ReaderPage() {
       setLoadedArticleUrl("");
       setWordIndex(0);
     }
-  }, [urlFromQuery, loadArticle, flushPosition]);
+  }, [urlFromQuery, loadArticle, flushPosition, cancelRequest]);
 
   // Migrate legacy `u` param to `url` on mount
   useEffect(() => {
@@ -664,21 +631,26 @@ export default function ReaderPage() {
     }
   }, [themeFromQuery, theme, setTheme]);
 
+  /** Navigate to an article; reload in place when it is already the current URL so retries work. */
+  function openArticle(articleUrl: string) {
+    setUrl(articleUrl);
+    if (articleUrl === urlFromQuery) loadArticle(articleUrl);
+    else setQueryStates({ url: articleUrl }, { history: "push" });
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     let trimmed: string;
     try { trimmed = normalizeArticleUrl(url); }
     catch (err) { setError((err as Error).message); return; }
-    setUrl(trimmed);
-    if (trimmed === urlFromQuery) loadArticle(trimmed);
-    else setQueryStates({ url: trimmed }, { history: "push" });
+    openArticle(trimmed);
   }
 
   const handleCopyLink = useCallback(async () => {
     if (!article || !loadedArticleUrl) return;
     const params = new URLSearchParams();
     params.set("url", loadedArticleUrl);
-    if (effectiveWpm !== WPM_DEFAULT) params.set("wpm", String(effectiveWpm));
+    if (effectiveWpm !== DEFAULT_WORDS_PER_MINUTE) params.set("wpm", String(effectiveWpm));
     if (effectiveTheme !== "black") params.set("theme", effectiveTheme);
     if (effectiveFontSize !== "md") params.set("fontSize", effectiveFontSize);
     const shareUrl = `${window.location.origin}/reader?${params.toString()}`;
@@ -701,22 +673,8 @@ export default function ReaderPage() {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      const el = document.activeElement;
-      const tag = el?.tagName.toLowerCase();
-      if (
-        tag === "input" ||
-        tag === "textarea" ||
-        tag === "select" ||
-        el?.getAttribute("contenteditable") === "true" ||
-        el?.closest("[role='dialog']")
-      ) {
-        return;
-      }
-      if (
-        (e.metaKey || e.ctrlKey) &&
-        e.shiftKey &&
-        e.key.toLowerCase() === "c"
-      ) {
+      if (isTypingInFocusedElement()) return;
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "c") {
         e.preventDefault();
         handleCopyLink();
       }
@@ -734,7 +692,7 @@ export default function ReaderPage() {
       sentenceEndDurationMs,
       speechBreakDurationMs,
       0,
-      words.length - 1,
+      undefined,
       hasLineBreakAfter,
     );
   }, [
@@ -744,10 +702,23 @@ export default function ReaderPage() {
     speechBreakDurationMs,
   ]);
 
-  const readingTimeLabel =
-    readingTimeMs >= 60000
-      ? `~${Math.round(readingTimeMs / 60000)} min read`
-      : `~${Math.round(readingTimeMs / 1000)} sec read`;
+  // Shared by the inline (compact) and docked readers; only layout props differ.
+  const readerPanelProps = {
+    variant: "panel",
+    playbackBlocked: isSettingsOpen || !!mediaPreview || isLoading,
+    pauseRequest,
+    text: articleText,
+    wordsPerMinute: effectiveWpm,
+    onWordsPerMinuteChange: handleWordsPerMinuteChange,
+    onWordIndexChange: setWordIndex,
+    onPlaybackChange: handlePlaybackChange,
+    controlledWordIndex: wordIndex,
+    sentenceEndDurationMsAt250Wpm: sentenceEndDurationMs,
+    speechBreakDurationMsAt250Wpm: speechBreakDurationMs,
+    fontSize: effectiveFontSize,
+    fontFamily,
+    focalColor,
+  } as const;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -795,8 +766,7 @@ export default function ReaderPage() {
             </Button>
             {isLoading && (
               <Button type="button" variant="outline" onClick={() => {
-                requestRef.current?.abort();
-                requestRef.current = null;
+                cancelRequest();
                 setIsLoading(false);
               }}>Cancel</Button>
             )}
@@ -822,11 +792,7 @@ export default function ReaderPage() {
                     previousArticles.map((a) => (
                       <DropdownMenuItem
                         key={a.url}
-                        onClick={() => {
-                          setUrl(a.url);
-                          if (a.url === urlFromQuery) loadArticle(a.url);
-                          else setQueryStates({ url: a.url }, { history: "push" });
-                        }}
+                        onClick={() => openArticle(a.url)}
                         className="max-w-[min(18rem,85vw)] cursor-pointer"
                       >
                         <span className="truncate" title={a.title}>
@@ -866,18 +832,12 @@ export default function ReaderPage() {
             onOpenChange={setIsBookmarkletOpen}
           >
             <Dialog.Portal>
-              <Dialog.Overlay
-                className={cn(
-                  "fixed inset-0 z-50",
-                  reduceTransparency ? "bg-black" : "bg-black/80",
-                  "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-                )}
-              />
+              <Dialog.Overlay className={dialogOverlayClassName(reduceTransparency)} />
               <Dialog.Content
                 className={cn(
                   "fixed left-1/2 top-1/2 z-50 w-[calc(100vw-1.5rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-zinc-900 p-4 shadow-xl sm:rounded-xl sm:p-6",
                   reduceTransparency ? "border-zinc-700" : "border-white/10",
-                  "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+                  DIALOG_CONTENT_ANIMATION,
                 )}
               >
                 <Dialog.Title className="mb-2 text-lg font-semibold text-zinc-100">
@@ -900,151 +860,18 @@ export default function ReaderPage() {
               </Dialog.Content>
             </Dialog.Portal>
           </Dialog.Root>
-          {isDesktop ? (
-            <Dialog.Root open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-              <Dialog.Trigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Open settings">
-                  <Settings className="size-5" />
-                </Button>
-              </Dialog.Trigger>
-              <Dialog.Portal>
-                <Dialog.Overlay
-                  className={cn(
-                    "fixed inset-0 z-50",
-                    reduceTransparency ? "bg-black" : "bg-black/80",
-                    "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-                  )}
-                />
-                <Dialog.Content
-                  data-settings-modal
-                  className={cn(
-                    "fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-1.5rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border bg-background p-4 shadow-xl scrollbar-hide sm:rounded-xl sm:p-6",
-                    reduceTransparency ? "border-zinc-700" : "border-white/10",
-                    "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-                  )}
-                >
-                  <Dialog.Title className="mb-2 shrink-0 text-lg font-semibold text-foreground">
-                    Reader Settings
-                  </Dialog.Title>
-                  <Dialog.Description className="mb-4 shrink-0 text-sm text-muted-foreground">
-                    Appearance, playback, and accessibility. Pause values are at
-                    250 WPM and scale with speed.
-                  </Dialog.Description>
-                  <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
-                    <ReaderSettingsContent
-                      idPrefix=""
-                      theme={effectiveTheme}
-                      setTheme={handleSetTheme}
-                      fontSize={effectiveFontSize}
-                      setFontSize={handleSetFontSize}
-                      fontFamily={fontFamily}
-                      setFontFamily={setFontFamily}
-                      focalColor={focalColor}
-                      setFocalColor={setFocalColor}
-                      sentenceEndDurationMs={sentenceEndDurationMs}
-                      setSentenceEndDurationMs={setSentenceEndDurationMs}
-                      speechBreakDurationMs={speechBreakDurationMs}
-                      setSpeechBreakDurationMs={setSpeechBreakDurationMs}
-                      showPunctuationGlyph={showPunctuationGlyph}
-                      setShowPunctuationGlyph={setShowPunctuationGlyph}
-                      punctuationGlyphLeadMs={punctuationGlyphLeadMs}
-                      setPunctuationGlyphLeadMs={setPunctuationGlyphLeadMs}
-                      punctuationGlyphDurationMs={punctuationGlyphDurationMs}
-                      setPunctuationGlyphDurationMs={
-                        setPunctuationGlyphDurationMs
-                      }
-                      punctuationGlyphAlwaysVisible={
-                        punctuationGlyphAlwaysVisible
-                      }
-                      setPunctuationGlyphAlwaysVisible={
-                        setPunctuationGlyphAlwaysVisible
-                      }
-                      centerPunctuationTittleVertically={
-                        centerPunctuationTittleVertically
-                      }
-                      setCenterPunctuationTittleVertically={
-                        setCenterPunctuationTittleVertically
-                      }
-                      reduceTransparency={reduceTransparency}
-                      setReduceTransparency={setReduceTransparency}
-                      reduceMotion={reduceMotion}
-                      setReduceMotion={setReduceMotion}
-                      showKeyboardShortcuts
-                      showShareShortcut
-                      onResetDefaults={handleResetDefaults}
-                    />
-                  </div>
-                </Dialog.Content>
-            </Dialog.Portal>
-          </Dialog.Root>
-          ) : (
-            <Drawer open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-              <DrawerTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Open settings">
-                  <Settings className="size-5" />
-                </Button>
-              </DrawerTrigger>
-              <DrawerContent
-                data-settings-modal
-                className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden scrollbar-hide"
-                overlayClassName={
-                  reduceTransparency ? "bg-black" : undefined
-                }
-              >
-                <DrawerHeader className="shrink-0 text-left">
-                  <DrawerTitle>Reader Settings</DrawerTitle>
-                  <DrawerDescription>
-                    Appearance, playback, and accessibility. Pause values are at
-                    250 WPM and scale with speed.
-                  </DrawerDescription>
-                </DrawerHeader>
-                <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide px-4 pb-6">
-                  <ReaderSettingsContent
-                    idPrefix="drawer-"
-                    theme={effectiveTheme}
-                    setTheme={handleSetTheme}
-                    fontSize={effectiveFontSize}
-                    setFontSize={handleSetFontSize}
-                    fontFamily={fontFamily}
-                    setFontFamily={setFontFamily}
-                    focalColor={focalColor}
-                    setFocalColor={setFocalColor}
-                    sentenceEndDurationMs={sentenceEndDurationMs}
-                    setSentenceEndDurationMs={setSentenceEndDurationMs}
-                    speechBreakDurationMs={speechBreakDurationMs}
-                    setSpeechBreakDurationMs={setSpeechBreakDurationMs}
-                    showPunctuationGlyph={showPunctuationGlyph}
-                    setShowPunctuationGlyph={setShowPunctuationGlyph}
-                    punctuationGlyphLeadMs={punctuationGlyphLeadMs}
-                    setPunctuationGlyphLeadMs={setPunctuationGlyphLeadMs}
-                    punctuationGlyphDurationMs={punctuationGlyphDurationMs}
-                    setPunctuationGlyphDurationMs={
-                      setPunctuationGlyphDurationMs
-                    }
-                    punctuationGlyphAlwaysVisible={
-                      punctuationGlyphAlwaysVisible
-                    }
-                    setPunctuationGlyphAlwaysVisible={
-                      setPunctuationGlyphAlwaysVisible
-                    }
-                    centerPunctuationTittleVertically={
-                      centerPunctuationTittleVertically
-                    }
-                    setCenterPunctuationTittleVertically={
-                      setCenterPunctuationTittleVertically
-                    }
-                    reduceTransparency={reduceTransparency}
-                    setReduceTransparency={setReduceTransparency}
-                    reduceMotion={reduceMotion}
-                    setReduceMotion={setReduceMotion}
-                    showKeyboardShortcuts
-                    showShareShortcut
-                    onResetDefaults={handleResetDefaults}
-                  />
-                </div>
-              </DrawerContent>
-            </Drawer>
-          )}
+          <ReaderSettingsPanel
+            title="Reader Settings"
+            open={isSettingsOpen}
+            onOpenChange={setIsSettingsOpen}
+            theme={effectiveTheme}
+            setTheme={handleSetTheme}
+            fontSize={effectiveFontSize}
+            setFontSize={handleSetFontSize}
+            showKeyboardShortcuts
+            showShareShortcut
+            onResetDefaults={handleResetDefaults}
+          />
         </div>
       </header>
 
@@ -1078,7 +905,7 @@ export default function ReaderPage() {
                   {[
                     article.siteName,
                     article.byline,
-                    readingTimeMs > 0 ? readingTimeLabel : null,
+                    readingTimeMs > 0 ? `${formatReadingTime(readingTimeMs)} read` : null,
                   ]
                     .filter(Boolean)
                     .join(" · ")}
@@ -1130,9 +957,7 @@ export default function ReaderPage() {
               >
                 <ArticleBody
                   ref={articleBodyRef}
-                  html={
-                    wrappedContent ?? processedContent ?? article?.content ?? ""
-                  }
+                  html={wrappedContent ?? article.content}
                   wordIndex={wordIndex}
                   onWordClick={handleWordClick}
                   onMediaClick={handleMediaClick}
@@ -1144,20 +969,7 @@ export default function ReaderPage() {
                 <div className="flex min-h-0 flex-1 flex-col print:hidden">
                   <Reader
                     key={article.content}
-                    variant="panel"
-                    playbackBlocked={isSettingsOpen || !!mediaPreview || isLoading}
-                    pauseRequest={pauseRequest}
-                    text={articleText}
-                    wordsPerMinute={effectiveWpm}
-                    onWordsPerMinuteChange={handleWordsPerMinuteChange}
-                    onWordIndexChange={setWordIndex}
-                    onPlaybackChange={handlePlaybackChange}
-                    controlledWordIndex={wordIndex}
-                    sentenceEndDurationMsAt250Wpm={sentenceEndDurationMs}
-                    speechBreakDurationMsAt250Wpm={speechBreakDurationMs}
-                    fontSize={effectiveFontSize}
-                    fontFamily={fontFamily}
-                    focalColor={focalColor}
+                    {...readerPanelProps}
                     fillHeight
                     className="flex-1 min-h-0 justify-center border-0"
                   />
@@ -1182,23 +994,7 @@ export default function ReaderPage() {
           ref={panelRef}
           className="fixed bottom-0 left-0 right-0 z-20 print:hidden"
         >
-          <Reader
-            key={article.content}
-            variant="panel"
-            playbackBlocked={isSettingsOpen || !!mediaPreview || isLoading}
-            pauseRequest={pauseRequest}
-            text={articleText}
-            wordsPerMinute={effectiveWpm}
-            onWordsPerMinuteChange={handleWordsPerMinuteChange}
-            onWordIndexChange={setWordIndex}
-            onPlaybackChange={handlePlaybackChange}
-            controlledWordIndex={wordIndex}
-            sentenceEndDurationMsAt250Wpm={sentenceEndDurationMs}
-            speechBreakDurationMsAt250Wpm={speechBreakDurationMs}
-            fontSize={effectiveFontSize}
-            fontFamily={fontFamily}
-            focalColor={focalColor}
-          />
+          <Reader key={article.content} {...readerPanelProps} />
         </div>
       )}
 
@@ -1207,17 +1003,11 @@ export default function ReaderPage() {
         onOpenChange={(open) => !open && setMediaPreview(null)}
       >
         <Dialog.Portal>
-          <Dialog.Overlay
-            className={cn(
-              "fixed inset-0 z-50",
-              reduceTransparency ? "bg-black" : "bg-black/90",
-              "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-            )}
-          />
+          <Dialog.Overlay className={dialogOverlayClassName(reduceTransparency, "bg-black/90")} />
           <Dialog.Content
             className={cn(
               "fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[calc(100vw-1.5rem)] max-w-[90vw] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg border border-white/10 bg-black p-2 focus:outline-none",
-              "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+              DIALOG_CONTENT_ANIMATION,
             )}
           >
             <Dialog.Title className="sr-only">Media preview</Dialog.Title>
